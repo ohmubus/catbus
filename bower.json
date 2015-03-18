@@ -1,0 +1,25 @@
+{
+  "name": "catbus",
+  "main": "catbus.js",
+  "version": "1.0.0",
+  "homepage": "https://github.com/DarkMarmot/catbus",
+  "authors": [
+    "Scott Southworth <scott.southworth.gmail.com>",
+    "Landon Barnickle <landon.barnickle@gmail.com>"
+  ],
+  "description": "data bus and shared storage for javascript component based applications",
+  "keywords": [
+    "bus",
+    "pipe",
+    "data"
+  ],
+  "license": "MIT",
+  "private": true,
+  "ignore": [
+    "**/.*",
+    "node_modules",
+    "bower_components",
+    "test",
+    "tests"
+  ]
+}
