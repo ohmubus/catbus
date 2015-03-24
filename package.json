@@ -1,0 +1,35 @@
+{
+  "name": "catbus",
+  "version": "0.9.0",
+  "description": "data store (cat?) and message bus (bus!) in Javascript",
+  "main": "catbus.js",
+  "directories": {
+    "test": "test"
+  },
+  "scripts": {
+    "test": "mocha"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/DarkMarmot/catbus.git"
+  },
+  "keywords": [
+    "catbus",
+    "bus",
+    "pub",
+    "sub",
+    "message",
+    "messaging",
+    "react",
+    "flux"
+  ],
+  "authors": [
+    "Scott Southworth (https://twitter.com/DarkMarmot)",
+    "Landon Barnickle (https://twitter.com/landonb)"
+    ],
+  "license": "Apache 2.0",
+  "bugs": {
+    "url": "https://github.com/DarkMarmot/catbus/issues"
+  },
+  "homepage": "https://github.com/DarkMarmot/catbus"
+}

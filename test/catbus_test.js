@@ -2,7 +2,7 @@
 
 var util = require('util');
 var assert = require('assert');
-var bus = require('../catbus.js');
+var bus = require('../src/catbus.js');
 
 
 var _invoked = 0;
