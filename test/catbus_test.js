@@ -98,12 +98,12 @@ describe('Catbus', function(){
 
         it('makes sensors with update topic', function(){
             var fish = boat.on();
-            assert.equal('update', fish.topic());
+            assert.equal('update', fish.attr('topic'));
         });
 
         it('and other topics', function(){
             var fish = boat.on('waves');
-            assert.equal('waves', fish.topic());
+            assert.equal('waves', fish.attr('topic'));
         });
 
     });
@@ -117,11 +117,7 @@ describe('Catbus', function(){
                 _reset();
 
                 if(girl){
-                      console.log('ack----');
-                      console.log(girl);
                     girl.drop();
-                } else {
-                    console.log('nak----');
                 }
                 girl = castle.on('update').run(_callback);
                 castle.write('walking', 'update');
@@ -133,42 +129,6 @@ describe('Catbus', function(){
 
         });
 
-
-
-        //describe('other stuff', function() {
-        //
-        //
-        //    it('runs callback', function () {
-        //        _reset();
-        //        girl = castle.on('update').run(_callback);
-        //        castle.write('Howl flies', 'update');
-        //        assert.equal(1, _invoked);
-        //    });
-        //
-        //    it('only for given topic', function () {
-        //        castle.write('Howl flies'); // topic defaults to update
-        //        assert.equal(1, _invoked); // did not invoke callback again
-        //    });
-        //
-        //    it('can change to old topic', function () {
-        //        girl.on('update').run(_callback);
-        //        castle.write('Howl flies'); // topic defaults to update
-        //        assert.equal(2, _invoked); // invoke callback once more
-        //    });
-        //
-        //    it('still drops subscription to all', function () {
-        //
-        //        _reset();
-        //        girl.drop();
-        //        castle.write('Howl moves');
-        //        assert.equal('Howl moves', castle.read()); // location has new data
-        //        assert.equal('Howl flies', castle.read('fly')); // location still has alternate topic data
-        //        assert.equal(undefined, girl.read()); // sensor has no data
-        //        assert.equal(0, _invoked); // did not run callback
-        //
-        //    });
-        //
-        //});
 
 
         describe('basic subscribe and drop', function() {
@@ -280,7 +240,7 @@ describe('Catbus', function(){
                 girl.sleep();
                 castle.write('in the sky');
                 assert.equal(0, _invoked); // did not invoke callback while sleeping
-                assert.equal(false, girl.active());
+                assert.equal(false, girl.attr('active'));
             });
 
             it('wakes from sleep', function () {
@@ -288,7 +248,7 @@ describe('Catbus', function(){
                 girl.wake();
                 castle.write('burning the sea');
                 assert.equal(1, _invoked); // invoked callback after waking
-                assert.equal(true, girl.active());
+                assert.equal(true, girl.attr('active'));
                 girl.drop();
             });
 
@@ -454,7 +414,6 @@ describe('Catbus', function(){
                 assert.equal('San', _msg.castle);
                 assert.equal('Ponyo', _msg.fish);
                 assert.equal('Yupa', _msg.spores);
-                console.log(_msg);
 
             });
 
@@ -520,7 +479,7 @@ describe('Catbus', function(){
                 floodWorld();
                 floodCastle();
                 bus.flush();
-                //console.log(_msg);
+
                 assert.equal(2, _invoked);
                 assert.equal(6, _msg.castle.length);
                 assert.equal(1, _msg.fish.length);
@@ -528,6 +487,41 @@ describe('Catbus', function(){
 
             });
 
+            it('batch only after needs fulfilled', function () {
+
+                girl.group().keep('first').need(['fish','spores']);
+                floodCastle();
+                bus.flush();
+                assert.equal(0, _invoked);
+                floodWorld();
+                bus.flush();
+                assert.equal(1, _invoked);
+                floodCastle();
+                bus.flush(); // does not send again
+                assert.equal(1, _invoked);
+
+
+            });
+
+
+            it('batch repeatedly after needs are retained', function () {
+
+                girl.group().retain().keep('first').need(['fish','spores']);
+                floodCastle();
+                floodWorld();
+                bus.flush();
+                assert.equal(1, _invoked);
+                girl.keep('last');
+                floodCastle();
+                bus.flush(); // does send again since needs were retained
+                assert.equal(2, _invoked);
+                bus.flush(); // but not again without additional messages
+                assert.equal(2, _invoked);
+                floodCastle();
+                bus.flush(); // and one more again for good measure
+                assert.equal(3, _invoked);
+
+            });
 
         });
 

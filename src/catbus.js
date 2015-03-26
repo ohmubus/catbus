@@ -81,7 +81,7 @@
         var arr;
         var q = this._queueFrame;
         if(sensor._defer) {
-            if (sensor._batch) {
+            if (sensor._batch || sensor._group) {
                 arr = q.batchAndDefer;
             } else {
                 arr = q.defer;
@@ -188,38 +188,182 @@
         this._last = null;
         this._name = null;
         this._postcard = null; // wrapped msg about to be sent...
-        this._sleeping = false;
+        this._active = true;
         this._id = ++catbus.uid;
 
         cluster._add(this);
     };
 
-    Sensor.prototype.name = function(name){
-      if(arguments.length === 0) return this._name;
-        this._name = name;
-        return this;
+
+    Sensor.prototype.throwError = function(msg){
+        throw {error:"Catbus: Sensor", msg: msg, sensor: this};
     };
 
-    Sensor.prototype.data = function(data){
-        if(arguments.length === 0) return this._data;
-        this._data = data;
-        return this;
+    var sensor_config = {
+
+        keep: {name: 'keep', options: ['last', 'first', 'all'], prop: '_keep', default_set: 'last'},
+        retain: {name: 'retain', type: 'boolean', prop: '_retain', default_set: true},
+        need: {name: 'need', transform: '_toStringArray', valid: '_isStringArray', prop: '_needs'},
+        host:  {name: 'host', type: 'string', setter: 'host', prop: '_host'},
+        defer: {name: 'defer', type: 'boolean' , prop: '_defer', default_set: true},
+        batch: {name: 'batch', type: 'boolean' , prop: '_batch', default_set: true},
+        change: {name: 'change', type: 'boolean' , prop: '_change', default_set: true},
+        group: {name: 'group', type: 'boolean' , prop: '_group', default_set: true},
+        pipe: {name: 'pipe', valid: '_isLocation', prop: '_pipe'},
+        name: {name: 'name', type: 'string' , prop: '_name'},
+        active: {name: 'active', type: 'boolean' , prop: '_active', default_set: true},
+        sleep: {name: 'sleep', no_arg: true , prop: '_active', default_set: false},
+        wake: {name: 'wake', no_arg: true , prop: '_active', default_set: true},
+        topic: {name: 'topic', type: 'string' , setter: 'on', getter: '_getTopic'},
+        on: {name: 'on', type: 'string' , setter: 'on', getter: '_getTopic'},
+        at: {name: 'at', transform: '_toLocation', valid: '_isLocation', setter: 'at', getter: '_getLocation'},
+        location: {name: 'location', transform: '_toLocation', valid: '_isLocation', setter: 'at', getter: '_getLocation'},
+        watch:  {name: 'watch', transform: '_toLocation', valid: '_isLocation', setter: 'at', getter: '_getLocation'},
+        transform:  {name: 'transform', type: 'function' , prop: '_transformMethod'},
+        run: {name: 'run', type: 'function' , prop: '_callback'},
+        filter: {name: 'filter', type: 'function' , prop: '_filter'},
+        as: {name: 'as', type: 'object' , prop: '_context'},
+        max:  {name: 'max', transform: '_toInt', type: 'number' , prop: '_max'},
+        once:  {name: 'once', no_arg: true, prop: '_max', default_set: 1},
+        tag: {name: 'tag', no_arg: true , getter: '_getTag', no_write: true}
+
     };
 
-    Sensor.prototype.needs = function(tags){
-        if(arguments.length === 0) return this._needs;
-        this._needs = tags;
-        return this;
+    // build chaining setters from config
+
+    for(var c in sensor_config){
+
+        var config = sensor_config[c];
+
+        if(config.no_write)
+            continue;
+
+        (function(name){
+
+            Sensor.prototype[name] = function(value){
+                if(arguments.length === 0)
+                    return this._setAttr(name);
+                else
+                    return this._setAttr(name, value);
+            };
+
+        })(config.name);
+
+    }
+
+    Sensor.prototype._toInt = function(num){
+        return Math.floor(num);
     };
 
-    Sensor.prototype.location = function(){
+    Sensor.prototype._getTopic = function(){
+        return this._cluster && this._cluster._topic;
+    };
+
+    Sensor.prototype._getTag = function(){
+        var loc = this._getLocation();
+        return loc && loc.tag();
+    };
+
+    Sensor.prototype._getLocation = function(){
         return this._cluster && this._cluster._location;
     };
 
-    Sensor.prototype.tag = function(){
-        var loc = this.location();
-        return loc && loc.tag();
+    Sensor.prototype._toLocation = function(nameOrLocation){
+
     };
+
+    Sensor.prototype._isLocation = function(location){
+        return location instanceof Location;
+    };
+
+    Sensor.prototype._toStringArray = function(stringOrStringArray){
+        if(typeof stringOrStringArray === 'string')
+            stringOrStringArray = stringOrStringArray.split(',');
+        return stringOrStringArray;
+    };
+
+    Sensor.prototype._isStringArray = function(value){
+        if(!(value instanceof Array))
+            return false;
+            for(var i = 0; i < value.length; i++){
+                var s = value[i];
+                if(typeof s !== 'string')
+                    return false;
+            }
+            return true;
+    };
+
+    Sensor.prototype.attr = function(nameOrConfig, value){
+
+        if(arguments.length === 1){
+            if(typeof nameOrConfig === 'string')
+                return this._getAttr(nameOrConfig);
+            else
+                return this._setMultiAttr(nameOrConfig);
+        } else {
+            return this._setAttr(nameOrConfig, value);
+        }
+
+    };
+
+    Sensor.prototype._getAttr = function(name){
+
+        var c = sensor_config[name];
+        if(!c)
+            this.throwError('Sensor getter attribute [' + name + '] not found');
+
+        return (c.getter) ? (this[c.getter]).call(this) : this[c.prop];
+
+    };
+
+    Sensor.prototype._setAttr = function(name, value){
+
+        var c = sensor_config[name];
+
+        if(!c)
+            this.throwError('Sensor attribute [' + name + '] does not exist');
+
+        if(c.method && c.no_arg && arguments.length > 1)
+            this.throwError('Sensor method [' + name + '] takes no arguments');
+
+        if(c.no_write)
+            this.throwError('Sensor attribute [' + name + '] is read-only');
+
+        if(arguments.length === 1)
+            value = c.default_set;
+
+        if(c.transform)
+            value = (this[c.transform])(value);
+
+        if(c.valid && !((this[c.valid])(value)))
+            this.throwError('Sensor set attribute [' + name + '] value invalid: ' + value);
+
+        if(c.type && !(c.type === typeof value))
+            this.throwError('Sensor set attribute [' + name + '] type mismatch: ' + value);
+
+        if(c.options && c.options.indexOf(value) === -1)
+            this.throwError('Sensor set attribute [' + name + '] value not among options: ' + value);
+
+        if(c.setter)
+            (this[c.setter]).call(this, value);
+        else if(c.prop)
+            this[c.prop] = value;
+
+        return this;
+
+    };
+
+    Sensor.prototype._setMultiAttr = function(config){
+
+        for(var name in config){
+            var value = config[name];
+            this._setAttr(name, value);
+        }
+
+        return this;
+
+    };
+
 
     Sensor.prototype.host = function(name) {
 
@@ -253,28 +397,9 @@
         return this;
     };
 
-    Sensor.prototype.topic = function() {
-        return this._cluster && this._cluster._topic;
-    };
 
     Sensor.prototype.peek = function() {
         return this._cluster && this._cluster._lastEnvelope;
-    };
-
-    Sensor.prototype.sleep = function() {
-        this._sleeping = true;
-        return this;
-    };
-
-    Sensor.prototype.wake = function() {
-        this._sleeping = false;
-        return this;
-    };
-
-    Sensor.prototype.active = function(state){
-        if(arguments.length === 0) return !this._sleeping;
-        this._sleeping = !state;
-        return this;
     };
 
     Sensor.prototype.look = Sensor.prototype.read = function() {
@@ -314,32 +439,6 @@
         return this;
     };
 
-    Sensor.prototype.pipe = function(location){
-        this._pipe = location;
-        return this;
-    };
-
-    Sensor.prototype.retain = function(){
-        this._retain = true;
-        return this;
-    };
-
-    Sensor.prototype.filter = function(filterFunc){
-        if(typeof filterFunc !== 'function')
-            throw new Error("Sensor filter must be a function");
-        this._filter = filterFunc;
-        return this;
-    };
-
-    Sensor.prototype.run = function(callback){
-        this._callback = callback;
-        return this;
-    };
-
-    Sensor.prototype.as = function(context){
-        this._context = context;
-        return this;
-    };
 
     Sensor.prototype.drop = function(){
         if(!this._cluster){
@@ -351,54 +450,9 @@
         return this;
     };
 
-    Sensor.prototype.max = function(n){
-        this._max = n;
-        return this;
-    };
-
-    Sensor.prototype.batch = function(){
-        this._batch = true;
-        return this;
-    };
-
-    Sensor.prototype.keep = function(val){ // last, first or all
-        if(arguments.length === 0)
-            return this._keep;
-        this._keep = val;
-        return this;
-    };
-
-
-
-    Sensor.prototype.defer = function(){
-        this._defer = true;
-        return this;
-    };
-
-    Sensor.prototype.once = function(){
-        this._max = 1;
-        return this;
-    };
-
-    Sensor.prototype.change = Sensor.prototype.distinct = function(){
-        this._change = true;
-        return this;
-    };
-
-    Sensor.prototype.group = function(){
-        this._group = true;
-        this._batch = true;
-        return this;
-    };
-
-    Sensor.prototype.transform = function(transformMethod){
-        this._transformMethod = transformMethod;
-        return this;
-    };
-
     Sensor.prototype.tell = function(msg, topic, tag) {
 
-        if(this._sleeping)
+        if(!this._active)
             return this;
 
         if(!this._callback && !this._pipe)
@@ -409,7 +463,7 @@
 
         msg = (this._transformMethod) ? this._transformMethod.call(this._context || this, msg, topic, tag) : msg;
 
-        if (this._batch) { // create lists of messages grouped by tag and list in order
+        if (this._batch || this._group) { // create lists of messages grouped by tag and list in order
             var list = this._batchedByTag[tag] = this._batchedByTag[tag] || [];
             list.push(msg);
             this._batchedAsList.push(msg);
@@ -420,7 +474,7 @@
         if(this._primed) return;
 
         // if all needs are not met, don't prime to send
-        if(this._batch && this._needs) {
+        if((this._batch || this._group) && this._needs) {
             for(var i = 0; i < this._needs.length; i++){
                 var need = this._needs[i];
                 if(!this._batchedByTag.hasOwnProperty(need)) return; // a need unmet
@@ -429,7 +483,7 @@
 
         this._primed = true;
 
-        if (this._batch || this._defer) {
+        if ((this._batch || this._group)|| this._defer) {
             this._bus.queue(this);
         } else {
             this.send();
@@ -458,7 +512,7 @@
         }
 
         if(!this._retain) this._batchedByTag = {};
-        this._postcard = catbus.envelope(consolidated, 'update', this.tag(), this);
+        this._postcard = catbus.envelope(consolidated, 'update', this._getTag(), this);
 
     };
 
@@ -476,7 +530,7 @@
             msg = msgs;
         }
 
-        this._postcard = catbus.envelope(msg, 'update', this.tag(), this);
+        this._postcard = catbus.envelope(msg, 'update', this._getTag(), this);
 
     };
 
@@ -486,7 +540,7 @@
         if(!this._cluster)
             return this; // dropped while batching?
 
-        if(this._batch && this._group) {
+        if(this._group) {
             this._consolidateBatchByTag();
         } else if (this._batch) {
             this._consolidateBatchAsList();
@@ -501,7 +555,7 @@
 
         var postcard = this._postcard;
 
-        if(!this._batch && this._change && this._last && this._last.msg === postcard.msg) {
+        if(!this._batch && !this._group && this._change && this._last && this._last.msg === postcard.msg) {
                 return this;
         }
 
@@ -514,11 +568,11 @@
                     this._pipe.tell(tag_msg, postcard.topic, tag);
                 }
             } else {
-                this._pipe.tell(postcard.msg, postcard.topic, this.tag());
+                this._pipe.tell(postcard.msg, postcard.topic, this._getTag());
             }
         } else {
             if(typeof (this._callback) !== 'function') return this;
-            this._callback.call(this._context || this, postcard.msg, postcard.topic, this.tag());
+            this._callback.call(this._context || this, postcard.msg, postcard.topic, this._getTag());
         }
 
         if(this._max > 0)
@@ -529,6 +583,8 @@
         return this;
 
     };
+
+
 
     var Location = function(name, tag) {
 
