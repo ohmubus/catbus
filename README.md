@@ -22,3 +22,4 @@ data store (cat?) and message bus (bus!) in Javascript
 |need | tag(s): string or [strings] | Prevents a Sensor from triggering until it has received messages for all specified tags. Generally used with batch, group and/or retain flags. | null | null |
 |active | flag: boolean | Enables or disables the Sensor ability to trigger. | true | true |
 |max | count: integer | Limits the number of times a Sensor can trigger. When the max is reached, the Sensor will automatically drop(). A value of -1 has no trigger limit. | -1 | -1 |
+|as | context: object | Sets the 'this' context that the filter, run and transform functions will use if needed. | self | self |
