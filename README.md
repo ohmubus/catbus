@@ -17,7 +17,10 @@ data store (cat?) and message bus (bus!) in Javascript
 |peek | (optional) topic: string | Returns the metadata associated with the last message written to the Location for the given topic (default: 'update'). | message metadata | 
 |read | (optional) topic: string | Returns the last message written to the Location for the given topic (default: 'update'). | msg: * | 
 |write | msg: *, (optional) topic: string, (optional) tag: string | Writes a message to the Location, triggering any Sensors currently watching it under a matching topic (default: 'update'). The default tag is the one associated with the Location.  | self | 
-
+|refresh | (optional) topic: string, (optional) tag: string  | Rewrites the current data at the Location, triggering any interested Sensors (note: the change flag would completely suppress this).  | self | 
+|toggle | (optional) topic: string, (optional) tag: string  | Writes the (!current data) at the Location, triggering any interested Sensors. | self | 
+|tag | none | Gets the tag of the Location. | tag: string | 
+|name | none | Gets the name of the Location. | name: string | 
 
 ### Sensor Attributes
 
