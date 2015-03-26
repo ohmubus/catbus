@@ -1,6 +1,13 @@
 # catbus
 data store (cat?) and message bus (bus!) in Javascript
 
+### Bus Methods 
+
+|Name | Parameters | Description | Returns | 
+|-----|------------|-------------|---------|---------|
+|at, location | name: string, (optional) tag: string | Creates or retrieves a Location with the given name stored on the bus. A tag can be given to the Location; this will travel with any messages generated at the Location. The tag is the same as the name by default. | Location | 
+|dropHost | name: string | Drops (i.e. destroys) any Sensors or Locations with the host name provided. | boolean (host existed?) | 
+|flush | none | Triggers the processing of all pending messages on the bus. This is called automatically | self | 
 
 ### Sensor Attributes
 
