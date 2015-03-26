@@ -1,6 +1,8 @@
 # catbus
 data store (cat?) and message bus (bus!) in Javascript
 
+## Catbus API Documentation
+
 ### Bus Methods 
 
 |Name | Parameters | Description | Returns | 
