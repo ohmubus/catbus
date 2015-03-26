@@ -8,7 +8,9 @@ data store (cat?) and message bus (bus!) in Javascript
 |-----|------------|-------------|---------|---------|
 |at, watch, location | location: string or Location | Assigns a new Location to the Sensor (thus no longer watching a prior Location).  | none | original Location | 
 |on, topic | topic: string | Assigns a new topic to the Sensor (thus no longer following a prior topic). | 'update' | 'update' | |name | name: string | Assigns a name to the Sensor. | none | none | 
-|run | callback: function |  Sets a callback to be invoked by the Sensor when triggered. | none | none |
+|run | callback: function |  Sets a callback to be invoked by the Sensor when triggered. Can run in specified context attribute. | null | null |
+|filter | handler: function |  Sets a function to silently filter messages in the Sensor so they do not trigger or accumulate. The handler will receive (msg, topic, tag) and should return true to continue processing the message. Can run in specified context attribute. | null | null |
+|transform | handler: function |  Sets a function to transform messages (if not filtered). The handler will receive (msg, topic, tag) and should return a new modified message. Can run in specified context attribute. | null | null |
 |pipe | location: string or Location |  Sets a target Location to which the Sensor writes when triggered. | none | none | 
 |change | flag: boolean | Prevents a Sensor from triggering unless an incoming value differs from the last value received. | true | false | 
 |batch | flag: boolean | Causes a Sensor to accumulate messages as specified by the Sensor's keep attribute -- until flushed (via nextTick(), requestAnimationFrame() or by manually invoking bus.flush()). | true | false | 
