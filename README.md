@@ -26,7 +26,7 @@ data store (cat?) and message bus (bus!) in Javascript
 
 ### Sensor Methods 
 
-|Name | Parameter | Description | Returns | 
+|Name | Parameters | Description | Returns | 
 |-----|------------|-------------|---------|---------|
 |once | none | Sets the max triggers attribute to 1. | self | 
 |wake | none | Sets the active attribute to true. | self | 
