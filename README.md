@@ -19,6 +19,6 @@ data store (cat?) and message bus (bus!) in Javascript
 |defer | flag: boolean | Delays triggering the Sensor until messages without the defer flag have been processed. | true | false |
 |retain | flag: boolean | Retains messages even after a flush in order to accumulate a fuller list (batch) or hash (group) | true | false |
 |host | name: string | Assigns a new host name to the Sensor. When a host is dropped through bus.dropHost(name), all Sensors and Locations assigned to the host are dropped and/or destroyed.  | null | null | 
-|need | tag(s): string or [strings] | Prevents a Sensor from triggering until it has received messages for all specified tags. Generally used with batch, group and/or retain flags. | true | false |
+|need | tag(s): string or [strings] | Prevents a Sensor from triggering until it has received messages for all specified tags. Generally used with batch, group and/or retain flags. | null | null |
 |active | flag: boolean | Enables or disables the Sensor ability to trigger. | true | true |
 |max | count: integer | Limits the number of times a Sensor can trigger. When the max is reached, the Sensor will automatically drop(). A value of -1 has no trigger limit. | -1 | -1 |
