@@ -1,5 +1,5 @@
-# catbus
-data store (cat?) and message bus (bus!) in Javascript
+# Catbus
+Data Store (Cat?) and Message Bus (Bus!) in Javascript
 
 ## Catbus API Documentation
 
