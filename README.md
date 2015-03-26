@@ -9,6 +9,16 @@ data store (cat?) and message bus (bus!) in Javascript
 |dropHost | name: string | Drops (i.e. destroys) any Sensors or Locations with the host name provided. | boolean (host existed?) | 
 |flush | none | Triggers the processing of all pending messages on the bus. This is called automatically | self | 
 
+### Location Methods 
+
+|Name | Parameters | Description | Returns | 
+|-----|------------|-------------|---------|---------|
+|on, topic | (optional) topic: string | Creates a Sensor watching this Location for messages associated with the given topic. The default topic is 'update'. | Sensor | 
+|peek | (optional) topic: string | Returns the metadata associated with the last message written to the Location for the given topic (default: 'update'). | message metadata | 
+|read | (optional) topic: string | Returns the last message written to the Location for the given topic (default: 'update'). | msg: * | 
+|write | msg: *, (optional) topic: string, (optional) tag: string | Writes a message to the Location, triggering any Sensors currently watching it under a matching topic (default: 'update'). The default tag is the one associated with the Location.  | self | 
+
+
 ### Sensor Attributes
 
 |Name | Parameter | Description | Setter Default | Sensor Default | 
@@ -38,8 +48,8 @@ data store (cat?) and message bus (bus!) in Javascript
 |once | none | Sets the max triggers attribute to 1. | self | 
 |wake | none | Sets the active attribute to true. | self | 
 |sleep | none | Sets the active attribute to false. | self | 
-|peek | none | Returns the packet containing the Sensor's last incoming msg and metadata (not filtered or transformed). | self | 
-|read | none | Returns the Sensor's last incoming msg (not filtered or transformed). | self | 
+|peek | none | Returns the packet containing the Sensor's last incoming msg and metadata (not filtered or transformed). | msg metadata | 
+|read | msg: * | Returns the Sensor's last incoming msg (not filtered or transformed). | self | 
 |tell | msg: *, topic: string, tag: string | Writes a message to the Sensor. This should generally only be called by Location objects -- but is exposed for hacking or debugging. | self | 
 |drop | none | Drops the Sensor's subscription to a Location, effectively destroying it. | self |
 |attr | name: string | Gets the value of the given attribute.  | attribute value: * |
