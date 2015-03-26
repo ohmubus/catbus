@@ -2,7 +2,7 @@
 data store (cat?) and message bus (bus!) in Javascript
 
 
-### Sensor Attribute Methods
+### Sensor Attributes
 
 |Name | Parameter | Description | Setter Default | Sensor Default | 
 |-----|------------|-------------|---------|---------|
@@ -33,6 +33,7 @@ data store (cat?) and message bus (bus!) in Javascript
 |sleep | none | Sets the active attribute to false. | self | 
 |peek | none | Returns the packet containing the Sensor's last incoming msg and metadata (not filtered or transformed). | self | 
 |read | none | Returns the Sensor's last incoming msg (not filtered or transformed). | self | 
+|tell | msg: *, topic: string, tag: string | Writes a message to the Sensor. This should generally only be called by Location objects -- but is exposed for hacking or debugging. | self | 
 |drop | none | Drops the Sensor's subscription to a Location, effectively destroying it. | self |
 |attr | name: string | Gets the value of the given attribute.  | attribute value: * |
 |attr | name: string, value: * | Sets the value of the given attribute.  | self |
