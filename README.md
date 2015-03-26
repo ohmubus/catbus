@@ -14,3 +14,4 @@ data store (cat?) and message bus (bus!) in Javascript
 |batch | flag (boolean) | Causes a Sensor to accumulate messages until flushed (via nextTick(), requestAnimationFrame() or by manually invoking bus.flush()). | true | false | 
 |defer | flag (boolean) | Delays triggering the Sensor until messages without the defer flag have been processed. | true | false |
 |retain | flag (boolean) | Retains messages even after a flush in order to accumulate a fuller list (batch) or hash (group) | true | false |
+|host | name (string) | Assigns a new host name to the Sensor. When a host is dropped through bus.dropHost(name), all Sensors and Locations assigned to the host are dropped and/or destroyed.  | none | none | 
