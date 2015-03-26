@@ -23,3 +23,21 @@ data store (cat?) and message bus (bus!) in Javascript
 |active | flag: boolean | Enables or disables the Sensor ability to trigger. | true | true |
 |max | count: integer | Limits the number of times a Sensor can trigger. When the max is reached, the Sensor will automatically drop(). A value of -1 has no trigger limit. | -1 | -1 |
 |as | context: object | Sets the 'this' context that the filter, run and transform functions will use if needed. | self | self |
+
+### Sensor Methods 
+
+|Name | Parameter | Description | Returns | 
+|-----|------------|-------------|---------|---------|
+|once | none | Sets the max triggers attribute to 1. | self | 
+|wake | none | Sets the active attribute to true. | self | 
+|sleep | none | Sets the active attribute to false. | self | 
+|peek | none | Returns the packet containing the Sensor's last incoming msg and metadata (not filtered or transformed). | self | 
+|read | none | Returns the Sensor's last incoming msg (not filtered or transformed). | self | 
+|drop | none | Drops the Sensor's subscription to a Location, effectively destroying it. | self |
+|attr | name: string | Gets the value of the given attribute.  | attribute value: * |
+|attr | name: string, value: * | Sets the value of the given attribute.  | self |
+|attr | {name: value, ... } | Sets multiple attribute values on the Sensor.  | self |
+
+
+
+
