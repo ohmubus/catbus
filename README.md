@@ -7,7 +7,7 @@ data store (cat?) and message bus (bus!) in Javascript
 |Name | Parameter | Description | Setter Default | Sensor Default | 
 |-----|------------|-------------|---------|---------|
 |at, watch, location | location: string or Location | Assigns a new Location to the Sensor (thus no longer watching a prior Location).  | none | original Location | 
-|on, topic | topic: string | Assigns a new topic to the Sensor (thus no longer following a prior topic). | 'update' | 'update' | 
+|on, topic | topic: string | Assigns a new topic to the Sensor (thus no longer following a prior topic). | 'update' | 'update' | |name | name: string | Assigns a name to the Sensor. | none | none | 
 |run | callback: function |  Sets a callback to be invoked by the Sensor when triggered. | none | none |
 |pipe | location: string or Location |  Sets a target Location to which the Sensor writes when triggered. | none | none | 
 |change | flag: boolean | Prevents a Sensor from triggering unless an incoming value differs from the last value received. | true | false | 
@@ -19,3 +19,4 @@ data store (cat?) and message bus (bus!) in Javascript
 |host | name: string | Assigns a new host name to the Sensor. When a host is dropped through bus.dropHost(name), all Sensors and Locations assigned to the host are dropped and/or destroyed.  | none | none | 
 |need | tag(s): string or [strings] | Prevents a Sensor from triggering until it has received messages for all specified tags. Generally used with batch, group and/or retain flags. | true | false |
 |active | flag: boolean | Enables or disables the Sensor ability to trigger. | true | true |
+|max | count: integer | Limits the number of times a Sensor can trigger. When the max is reached, the Sensor will automatically drop(). A value of -1 has no trigger limit. | -1 | -1 |
