@@ -13,6 +13,7 @@ data store (cat?) and message bus (bus!) in Javascript
 |change | flag: boolean | Prevents a Sensor from triggering unless an incoming value differs from the last value received. | true | false | 
 |batch | flag: boolean | Causes a Sensor to accumulate messages as specified by the Sensor's keep attribute -- until flushed (via nextTick(), requestAnimationFrame() or by manually invoking bus.flush()). | true | false | 
 |group | flag: boolean | Causes a Sensor to accumulate messages in a hash by tag as specified by the Sensor's keep attribute --  until flushed (via nextTick(), requestAnimationFrame() or by manually invoking bus.flush()). Often used in tandem with batch and/or retain. | true | false | 
+| keep | string: 'last', 'first' or 'all' | Causes a Sensor to keep certain messages (only the first, the last or all of them). If the group flag is set, the keep rules will be applied to messages by tag (not by the full set). | 'last' | 'last' |
 |defer | flag: boolean | Delays triggering the Sensor until messages without the defer flag have been processed. | true | false |
 |retain | flag: boolean | Retains messages even after a flush in order to accumulate a fuller list (batch) or hash (group) | true | false |
 |host | name: string | Assigns a new host name to the Sensor. When a host is dropped through bus.dropHost(name), all Sensors and Locations assigned to the host are dropped and/or destroyed.  | none | none | 
