@@ -12,4 +12,5 @@ data store (cat?) and message bus (bus!) in Javascript
 |pipe | location (string or Location) |  Sets a target Location to which the Sensor writes when triggered. | none | none | 
 |change | flag (boolean) | Prevents a Sensor from triggering unless an incoming value differs from the last value received. | true | false | 
 |batch | flag (boolean) | Causes a Sensor to accumulate messages until flushed (via nextTick(), requestAnimationFrame() or by manually invoking bus.flush()). | true | false | 
-|defer | flag (boolean) | Delays triggering the Sensor until messages without the defer flag have been processed. | true | false |retain | flag (boolean) | Retains messages even after a flush in order to accumulate a fuller list (batch) or hash (group) | true | false |
+|defer | flag (boolean) | Delays triggering the Sensor until messages without the defer flag have been processed. | true | false |
+|retain | flag (boolean) | Retains messages even after a flush in order to accumulate a fuller list (batch) or hash (group) | true | false |
