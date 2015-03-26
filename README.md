@@ -6,7 +6,7 @@ data store (cat?) and message bus (bus!) in Javascript
 
 |Name | Parameter | Description | Setter Default | Sensor Default | 
 |-----|------------|-------------|---------|---------|
-|at, watch, location | location: string or Location | Assigns a new Location to the Sensor (thus no longer watching a prior Location).  | current Location | original Location | 
+|at, location | location: string or Location | Assigns a new Location to the Sensor (thus no longer watching a prior Location).  | current Location | original Location | 
 |on, topic | topic: string | Assigns a new topic to the Sensor (thus no longer following a prior topic). | 'update' | 'update' | |name | name: string | Assigns a name to the Sensor. | null | null | 
 |run | callback: function |  Sets a callback to be invoked by the Sensor when triggered. Can run in specified context attribute. | null | null |
 |filter | handler: function |  Sets a function to silently filter messages in the Sensor so they do not trigger or accumulate. The handler will receive (msg, topic, tag) and should return true to continue processing the message. Can run in specified context attribute. | null | null |
