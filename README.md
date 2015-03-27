@@ -1,7 +1,42 @@
 # Catbus
 Data Store (Cat?) and Message Bus (Bus!) in Javascript
 
-## Catbus API Documentation
+## Overview
+
+Designed as a standalone Javascript library, Catbus provides a pub/sub implementation that supports data storage and functional transformations, simplifying the coordination of asynchronous processes and states. Batch, group, filter, pipe, etc. Manage subscriptions en masse in order to avoid memory leaks or unexpected behaviors.
+
+## Usage
+
+'''html
+
+var bus = require('catbus.js');
+var speaker = function(msg, topic, tag){ console.log(msg + ' last detected in: ' + tag); };
+var isMouse = function(msg){ return msg === 'scurry'; };
+var alarm = bus.at('alarm');
+var kitchen = bus.at('kitchen');
+var hall = bus.at('hall');
+var den = bus.at('den);
+var tracker = bus.at('tracker');
+
+alarm.on().batch().keep('last').run(speaker);
+tracker.on('update').filter(isMouse).pipe(alarm).host('test');
+kitchen.on().pipe(tracker).host('test');
+hall.on().pipe(tracker).host('test');
+den.on().pipe(tracker).host('test');
+
+den.write('bounce');
+den.write('skip');
+kitchen.write('scurry');
+hall.write('scurry');
+hall.write('flip');
+
+bus.flush();
+
+// output: scurry last detected in hall
+
+'''
+
+## API Documentation
 
 ### Bus Methods 
 
