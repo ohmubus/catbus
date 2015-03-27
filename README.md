@@ -15,7 +15,7 @@ var isMouse = function(msg){ return msg === 'scurry'; };
 var alarm = bus.at('alarm');
 var kitchen = bus.at('kitchen');
 var hall = bus.at('hall');
-var den = bus.at('den);
+var den = bus.at('den');
 var tracker = bus.at('tracker');
 
 alarm.on().batch().keep('last').run(speaker);
