@@ -52,7 +52,7 @@
         delete hosts[name];
     };
 
-    catbus.at = function(name, tag) {
+    catbus.at = catbus.location = function(name, tag) {
         var locs = catbus._locations;
         return locs[name] || (locs[name] = new Location(name, tag));
     };
@@ -414,7 +414,7 @@
         return this;
     };
 
-    Sensor.prototype.at = Sensor.prototype.watch = function(location){
+    Sensor.prototype.at = Sensor.prototype.location = function(location){
 
         if(arguments.length === 0) return this._cluster._location;
 
@@ -458,7 +458,7 @@
         if(!this._callback && !this._pipe)
             return this; // no actions to take
 
-        if(this._filter && !this._filter(msg, topic, tag))
+        if(this._filter && !this._filter.call(this._context || this, msg, topic, tag))
             return this; // message filtered out
 
         msg = (this._transformMethod) ? this._transformMethod.call(this._context || this, msg, topic, tag) : msg;
@@ -609,7 +609,7 @@
         return this._name || null;
     };
 
-    Location.prototype.on = function(topic){
+    Location.prototype.on = Location.prototype.topic =  function(topic){
 
         topic = topic || "update";
         if(typeof topic !== 'string')
@@ -671,12 +671,12 @@
         }
     };
 
-    Location.prototype.refresh = function(topic){
-        this.write(this.read(topic),topic);
+    Location.prototype.refresh = function(topic, tag){
+        this.write(this.read(topic),topic, tag);
     };
 
-    Location.prototype.toggle = function(topic){
-        this.write(!this.read(topic),topic);
+    Location.prototype.toggle = function(topic, tag){
+        this.write(!this.read(topic),topic, tag);
     };
 
     return catbus;
