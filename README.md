@@ -7,7 +7,7 @@ Designed as a standalone Javascript library, Catbus provides a pub/sub implement
 
 ## Usage
 
-'''html
+```javascript
 
 var bus = require('catbus.js');
 var speaker = function(msg, topic, tag){ console.log(msg + ' last detected in: ' + tag); };
@@ -34,7 +34,7 @@ bus.flush();
 
 // output: scurry last detected in hall
 
-'''
+```
 
 ## API Documentation
 
