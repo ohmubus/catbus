@@ -6,7 +6,7 @@ Data Store (Cat?) and Message Bus (Bus!) in Javascript
 ### Bus Methods 
 
 |Name | Parameters | Description | Returns | 
-|-----|------------|-------------|---------|---------|
+|-----|------------|-------------|---------|
 |at, location | name: string, (optional) tag: string | Creates or retrieves a Location with the given name stored on the bus. A tag can be given to the Location; this will travel with any messages generated at the Location. The tag is the same as the name by default. | Location | 
 |dropHost | name: string | Drops (i.e. destroys) any Sensors or Locations with the host name provided. | boolean (host existed?) | 
 |flush | none | Triggers the processing of all pending messages on the bus. This is called automatically | self | 
@@ -14,7 +14,7 @@ Data Store (Cat?) and Message Bus (Bus!) in Javascript
 ### Location Methods 
 
 |Name | Parameters | Description | Returns | 
-|-----|------------|-------------|---------|---------|
+|-----|------------|-------------|---------|
 |on, topic | (optional) topic: string | Creates a Sensor watching this Location for messages associated with the given topic. The default topic is 'update'. | Sensor | 
 |peek | (optional) topic: string | Returns the metadata associated with the last message written to the Location for the given topic (default: 'update'). | message metadata | 
 |read | (optional) topic: string | Returns the last message written to the Location for the given topic (default: 'update'). | msg: * | 
@@ -27,7 +27,7 @@ Data Store (Cat?) and Message Bus (Bus!) in Javascript
 ### Sensor Attributes
 
 |Name | Parameter | Description | Setter Default | Sensor Default | 
-|-----|------------|-------------|---------|---------|
+|-----|------------|-----------------------------------------|---------|---------|
 |at, location | location: string or Location | Assigns a new Location to the Sensor (thus no longer watching a prior Location).  | current Location | original Location | 
 |on, topic | topic: string | Assigns a new topic to the Sensor (thus no longer following a prior topic). | 'update' | 'update' | |name | name: string | Assigns a name to the Sensor. | null | null | 
 |run | callback: function |  Sets a callback to be invoked by the Sensor when triggered. Can run in specified context attribute. | null | null |
@@ -49,7 +49,7 @@ Data Store (Cat?) and Message Bus (Bus!) in Javascript
 ### Sensor Methods 
 
 |Name | Parameters | Description | Returns | 
-|-----|------------|-------------|---------|---------|
+|-----|------------|-------------------|---------|
 |once | none | Sets the max triggers attribute to 1. | self | 
 |wake | none | Sets the active attribute to true. | self | 
 |sleep | none | Sets the active attribute to false. | self | 
