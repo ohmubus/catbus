@@ -76,7 +76,7 @@ bus.dropHost('test');
 
 ### Sensor Attributes
 
-These 'attributes' are all chainable setter methods; they listed separately because all of these can be accessed via the attr method: sensor.attr(name, value) or sensor.attr({name: value, ... }). It acts as a getter if there is no value argument provided. 
+These 'attributes' are all chainable setter methods; they are listed separately because all of these can be accessed via the attr method: sensor.attr(name, value) or sensor.attr({name: value, ... }). It acts as a getter if there is no value argument provided. 
 
 |Name | Parameter | Description | Setter Default | Sensor Default | 
 |-----|------------|-----------------------------------------|---------|---------|
