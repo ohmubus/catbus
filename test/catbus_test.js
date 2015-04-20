@@ -37,7 +37,7 @@ var _reset = function(){
 };
 
 
-var tree, boat, castle, valley, airship, girl, ohmu, yupa;
+var tree, boat, castle, valley, airship, girl, ohmu, yupa, lands;
 
 castle = bus.at('castle');
 valley  = bus.at('valley');
@@ -49,7 +49,8 @@ describe('Catbus', function(){
 
     before(function(){
         tree = bus.at('tree');
-        boat = bus.at('boat', 'Ponyo');
+        boat = bus.at('boat').tag('Ponyo');
+        lands = bus.at(['tree','boat','desert']);
     });
 
     describe('Locations', function(){
@@ -57,6 +58,7 @@ describe('Catbus', function(){
 
         it('makes locations', function(){
             assert.equal('object', typeof tree);
+            assert.equal(3, lands._multi.length);
         });
 
         it('with default tags', function(){
@@ -104,6 +106,15 @@ describe('Catbus', function(){
         it('and other topics', function(){
             var fish = boat.on('waves');
             assert.equal('waves', fish.attr('topic'));
+        });
+
+        it('makes multi-sensors with topics', function(){
+            var tanks = lands.on(['update','destroy']);
+            console.log(tanks.attr('keep'));
+            assert.equal(6, tanks.attr('tag').length);
+            tanks.attr({'keep':'first','topic':'meow'});
+            console.log(tanks.attr('keep'));
+            console.log(tanks.attr('topic'));
         });
 
     });

@@ -1,7 +1,7 @@
 /**
- * catbus.js (v0.9.0)
+ * catbus.js (v0.10.0)
  *
- * Copyright (c) 2015 Scott Southworth, Landon Barnickle & contributors
+ * Copyright (c) 2015 Scott Southworth, Landon Barnickle & Contributors
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this
  * file except in compliance with the License. You may obtain a copy of the License at:
@@ -39,6 +39,7 @@
     catbus._queueFrame = createQueueFrame();
 
     catbus.dropHost = function(name){
+
         var hosts = catbus._hosts;
         if(!hosts[name]) return false;
         var host = hosts[name];
@@ -52,10 +53,27 @@
         delete hosts[name];
     };
 
-    catbus.at = catbus.location = function(name, tag) {
-        var locs = catbus._locations;
-        return locs[name] || (locs[name] = new Location(name, tag));
+    catbus.at = catbus.location = function(nameOrNames) {
+
+        function demandLocation(name){
+            var locs = catbus._locations;
+            return locs[name] || (locs[name] = new Location(name));
+        }
+
+        if(typeof nameOrNames === 'string')
+            return demandLocation(nameOrNames);
+
+        // assume array for now todo use config type checking
+        var multiLoc = demandLocation('auto:' + (catbus.uid + 1));
+        var locs = multiLoc._multi = [];
+        for(var i = 0; i < nameOrNames.length; i++){
+            var name = nameOrNames[i];
+            locs.push(demandLocation(name));
+        }
+        return multiLoc;
+
     };
+
 
     catbus.matchTopics = function(sensorTopic, locationTopic){
 
@@ -170,6 +188,7 @@
 
     var Sensor = function(cluster) {
 
+        this._multi = null; // list of sensors to process through sensor api
         this._cluster = cluster;
         this._callback = null;
         this._context = null;
@@ -191,7 +210,8 @@
         this._active = true;
         this._id = ++catbus.uid;
 
-        cluster._add(this);
+        if(cluster)
+            cluster._add(this);
     };
 
 
@@ -199,12 +219,24 @@
         throw {error:"Catbus: Sensor", msg: msg, sensor: this};
     };
 
+
+    var bus_config = {
+
+    };
+
+    var location_config = {
+
+        on: {name: 'on', alias: ['topic','sensor'], type: 'string' , setter: '_setTopic', getter: '_getTopic'},
+        tag: {name: 'tag', type: 'string' , prop: '_tag'}
+
+    };
+
     var sensor_config = {
 
         keep: {name: 'keep', options: ['last', 'first', 'all'], prop: '_keep', default_set: 'last'},
         retain: {name: 'retain', type: 'boolean', prop: '_retain', default_set: true},
-        need: {name: 'need', transform: '_toStringArray', valid: '_isStringArray', prop: '_needs'},
-        host:  {name: 'host', type: 'string', setter: 'host', prop: '_host'},
+        need: {name: 'need', transform: '_toStringArray', valid: '_isStringArray', prop: '_needs'}, // todo, also accept [locs] to tags
+        host:  {name: 'host', type: 'string', setter: '_setHost', prop: '_host'},
         defer: {name: 'defer', type: 'boolean' , prop: '_defer', default_set: true},
         batch: {name: 'batch', type: 'boolean' , prop: '_batch', default_set: true},
         change: {name: 'change', type: 'boolean' , prop: '_change', default_set: true},
@@ -214,11 +246,8 @@
         active: {name: 'active', type: 'boolean' , prop: '_active', default_set: true},
         sleep: {name: 'sleep', no_arg: true , prop: '_active', default_set: false},
         wake: {name: 'wake', no_arg: true , prop: '_active', default_set: true},
-        topic: {name: 'topic', type: 'string' , setter: 'on', getter: '_getTopic'},
-        on: {name: 'on', type: 'string' , setter: 'on', getter: '_getTopic'},
-        at: {name: 'at', transform: '_toLocation', valid: '_isLocation', setter: 'at', getter: '_getLocation'},
-        location: {name: 'location', transform: '_toLocation', valid: '_isLocation', setter: 'at', getter: '_getLocation'},
-        watch:  {name: 'watch', transform: '_toLocation', valid: '_isLocation', setter: 'at', getter: '_getLocation'},
+        on: {name: 'on', alias: ['topic'], type: 'string' , setter: '_setTopic', getter: '_getTopic'},
+        watch:  {name: 'watch', alias: ['location','at'], transform: '_toLocation', valid: '_isLocation', setter: '_setLocation', getter: '_getLocation'},
         transform:  {name: 'transform', type: 'function' , prop: '_transformMethod'},
         run: {name: 'run', type: 'function' , prop: '_callback'},
         filter: {name: 'filter', type: 'function' , prop: '_filter'},
@@ -231,9 +260,23 @@
 
     // build chaining setters from config
 
-    for(var c in sensor_config){
+    var c;
+    var config;
 
-        var config = sensor_config[c];
+    for(c in sensor_config){
+        config = sensor_config[c];
+        var alias = config.alias;
+        if(alias){
+            for(var i = 0; i < alias.length; i++){
+                var alias_name = alias[i];
+                sensor_config[alias_name] = config;
+            }
+        }
+    }
+
+    for(c in sensor_config){
+
+        config = sensor_config[c];
 
         if(config.no_write)
             continue;
@@ -241,6 +284,11 @@
         (function(name){
 
             Sensor.prototype[name] = function(value){
+
+                if(this._multi){
+                    return this._multiAttr(name, value);
+                }
+
                 if(arguments.length === 0)
                     return this._setAttr(name);
                 else
@@ -295,16 +343,54 @@
 
     Sensor.prototype.attr = function(nameOrConfig, value){
 
+        if(this._multi){
+            return this._multiAttr.apply(this, arguments);
+        }
+
         if(arguments.length === 1){
             if(typeof nameOrConfig === 'string')
                 return this._getAttr(nameOrConfig);
             else
-                return this._setMultiAttr(nameOrConfig);
+                return this._setHashAttr(nameOrConfig);
         } else {
             return this._setAttr(nameOrConfig, value);
         }
 
     };
+
+    Sensor.prototype._multiAttr = function(nameOrConfig, value){
+
+        var i;
+        var result;
+        var c = this._multi.length;
+        var s;
+
+        if(arguments.length === 1) {
+            if (typeof nameOrConfig === 'string') {
+                result = [];
+                for (i = 0; i < c; i++) {
+                    s = this._multi[i];
+                    result.push(s._getAttr(nameOrConfig));
+                }
+                return result;
+            } else {
+                for (i = 0; i < c; i++) {
+                    s = this._multi[i];
+                    s._setHashAttr(nameOrConfig);
+                }
+                return this;
+            }
+        } else {
+            for (i = 0; i < c; i++) {
+                s = this._multi[i];
+                s._setAttr(nameOrConfig, value);
+            }
+            return this;
+        }
+
+    };
+
+
 
     Sensor.prototype._getAttr = function(name){
 
@@ -317,6 +403,7 @@
     };
 
     Sensor.prototype._setAttr = function(name, value){
+
 
         var c = sensor_config[name];
 
@@ -338,7 +425,7 @@
         if(c.valid && !((this[c.valid])(value)))
             this.throwError('Sensor set attribute [' + name + '] value invalid: ' + value);
 
-        if(c.type && !(c.type === typeof value))
+        if(c.type && value && !(c.type === typeof value))
             this.throwError('Sensor set attribute [' + name + '] type mismatch: ' + value);
 
         if(c.options && c.options.indexOf(value) === -1)
@@ -353,7 +440,7 @@
 
     };
 
-    Sensor.prototype._setMultiAttr = function(config){
+    Sensor.prototype._setHashAttr = function(config){
 
         for(var name in config){
             var value = config[name];
@@ -365,7 +452,7 @@
     };
 
 
-    Sensor.prototype.host = function(name) {
+    Sensor.prototype._setHost = function(name) {
 
         var hosts = catbus._hosts;
         if(arguments.length==0) return this._host;
@@ -382,13 +469,11 @@
 
     };
 
-    Sensor.prototype.on = function(topic){
+    Sensor.prototype._setTopic = function(topic){
 
         var origCluster  = this._cluster;
         var location = origCluster._location;
         var origTopic = origCluster._topic;
-
-        if(arguments.length === 0) return origTopic;
 
         if(origCluster) // changing clusters with locations, leave the current one
             origCluster._remove(this);
@@ -414,9 +499,11 @@
         return this;
     };
 
-    Sensor.prototype.at = Sensor.prototype.location = function(location){
+    Sensor.prototype._setLocation = function(location){
 
-        if(arguments.length === 0) return this._cluster._location;
+        if(arguments.length === 0) throw new Error();
+
+        //if(arguments.length === 0) return this._cluster._location;
 
         var locations = catbus._locations;
         if(typeof location === 'string'){
@@ -442,7 +529,7 @@
 
     Sensor.prototype.drop = function(){
         if(!this._cluster){
-            return;
+            return this;
         }
         this.host(null);
         this._cluster._remove(this);
@@ -461,7 +548,8 @@
         if(this._filter && !this._filter.call(this._context || this, msg, topic, tag))
             return this; // message filtered out
 
-        msg = (this._transformMethod) ? this._transformMethod.call(this._context || this, msg, topic, tag) : msg;
+        if(!this._batch)
+            msg = (this._transformMethod) ? this._transformMethod.call(this._context || this, msg, topic, tag) : msg;
 
         if (this._batch || this._group) { // create lists of messages grouped by tag and list in order
             var list = this._batchedByTag[tag] = this._batchedByTag[tag] || [];
@@ -586,10 +674,11 @@
 
 
 
-    var Location = function(name, tag) {
+    var Location = function(name) {
 
+        this._multi = null; // list of locations to put through api
         this._id = ++catbus.uid;
-        this._tag = tag || name;
+        this._tag = name; // default
         this._name = name;
         this._clusters = {}; // by topic
 
@@ -601,22 +690,48 @@
         return "[Location]: " + this._name;
     };
 
-    Location.prototype.tag = function(){
-        return this._tag || null;
+    Location.prototype.tag = function(tag){
+        if(arguments.length === 0) return this._tag;
+        this._tag = tag;
+        return this;
     };
 
     Location.prototype.name = function(){
         return this._name || null;
     };
 
+
+
     Location.prototype.on = Location.prototype.topic =  function(topic){
 
-        topic = topic || "update";
-        if(typeof topic !== 'string')
-            throw new Error("Topic is not a string");
+        function createSensor(loc, topic){
+            var cluster = loc._demandCluster(topic);
+            return new Sensor(cluster);
+        }
 
-        var cluster = this._demandCluster(topic);
-        return new Sensor(cluster);
+        var topic_list;
+        var loc_list;
+
+        topic = topic || 'update';
+        topic_list = (typeof topic === 'string') ? [topic] : topic; // assume array todo verify is array
+
+        loc_list = this._multi || [this];
+
+        if(loc_list.length === 1 && topic_list.length === 1)
+            return createSensor(this, topic_list[0]);
+
+        var multiSensor = new Sensor();
+        var sensors = multiSensor._multi = [];
+
+        for(var i = 0; i < loc_list.length; i++){
+            var loc = loc_list[i];
+            for(var j = 0; j < topic_list.length; j++){
+                var topic_name = topic[j];
+                sensors.push(createSensor(loc, topic_name));
+            }
+        }
+
+        return multiSensor;
 
     };
 
