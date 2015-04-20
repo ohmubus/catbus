@@ -16,6 +16,9 @@
  *
  */
 
+// todo batching always makes new sensor
+// todo merge always makes new sensor
+
 ;(function (root, factory) {
     if(typeof define === "function" && define.amd) {
         define(factory);
@@ -60,8 +63,6 @@
 
     catbus.at = catbus.location = function(nameOrNames) {
 
-
-
         if(typeof nameOrNames === 'string')
             return demandLocation(nameOrNames);
 
@@ -101,7 +102,7 @@
         var arr;
         var q = this._queueFrame;
         if(sensor._defer) {
-            if (sensor._batch || sensor._group) {
+            if (sensor._batch) {
                 arr = q.batchAndDefer;
             } else {
                 arr = q.defer;
@@ -256,7 +257,7 @@
         as: {name: 'as', type: 'object' , prop: '_context'},
         max:  {name: 'max', transform: '_toInt', type: 'number' , prop: '_max'},
         once:  {name: 'once', no_arg: true, prop: '_max', default_set: 1},
-        tag: {name: 'tag', no_arg: true , getter: '_getTag', no_write: true}
+        tag: {name: 'tag', getter: '_getTag', prop: '_tag', type: 'string'}
 
     };
 
@@ -288,7 +289,10 @@
             Sensor.prototype[name] = function(value){
 
                 if(this._multi){
-                    return this._multiAttr(name, value);
+                    if(arguments.length === 0)
+                        return this._setMultiAttr(name);
+                    else
+                        return this._setMultiAttr(name, value);
                 }
 
                 if(arguments.length === 0)
@@ -310,6 +314,8 @@
     };
 
     Sensor.prototype._getTag = function(){
+        if(this._tag)
+            return this._tag;
         var loc = this._getLocation();
         return loc && loc.tag();
     };
@@ -359,6 +365,31 @@
         }
 
     };
+
+    Sensor.prototype._setMultiAttr = function(nameOrConfig, value){
+
+        var i;
+        var c = this._multi.length;
+        var s;
+
+        if(arguments.length === 1 && typeof nameOrConfig === 'object') {
+
+            for (i = 0; i < c; i++) {
+                s = this._multi[i];
+                s._setHashAttr(nameOrConfig);
+            }
+            return this;
+
+        } else {
+            for (i = 0; i < c; i++) {
+                s = this._multi[i];
+                s._setAttr.apply(s, arguments);
+            }
+            return this;
+        }
+
+    };
+
 
 
     Sensor.prototype._multiAttr = function(nameOrConfig, value){
@@ -531,9 +562,7 @@
 
     Sensor.prototype.merge = function() {
 
-        if(!this._multi) return this;
-
-        var sensors = this._multi;
+        var sensors = this._multi || [this];
 
         var mergeLoc = demandLocation('auto:' + (catbus.uid + 1));
 
@@ -593,7 +622,7 @@
 
         this._primed = true;
 
-        if ((this._batch || this._group)|| this._defer) {
+        if ((this._batch)|| this._defer) {
             this._bus.queue(this);
         } else {
             this.send();
@@ -672,14 +701,14 @@
         this._last = postcard;
 
         if(this._pipe){
-            if(this._group){
-                for(var tag in postcard.msg){
-                    var tag_msg = postcard.msg[tag];
-                    this._pipe.tell(tag_msg, postcard.topic, tag);
-                }
-            } else {
+            //if(this._group){
+            //    for(var tag in postcard.msg){
+            //        var tag_msg = postcard.msg[tag];
+            //        this._pipe.tell(tag_msg, postcard.topic, tag);
+            //    }
+            //} else {
                 this._pipe.tell(postcard.msg, postcard.topic, this._getTag());
-            }
+            //}
         } else {
             if(typeof (this._callback) !== 'function') return this;
             this._callback.call(this._context || this, postcard.msg, postcard.topic, this._getTag());

@@ -598,7 +598,7 @@ describe('Catbus', function(){
 
             it('direct batch pipe, grouped', function () {
 
-                ohmu.batch().group();
+                ohmu.batch();
                 yupa.group();
                 floodAirship();
                 bus.flush();
@@ -609,24 +609,7 @@ describe('Catbus', function(){
 
             });
 
-            it('pipe batch to pipe batch, grouped', function () {
 
-                ohmu.batch().group();
-                girl.batch().group();
-                yupa.group();
-
-                floodCastle();
-                floodAirship();
-                floodCastle();
-
-                bus.flush();
-                assert.equal(1, _invoked);
-                assert.equal('valley', _tag);
-                assert.equal('Teto', _msg.wind);
-                assert.equal('Kurotowa', _msg.armor);
-
-
-            });
 
 
         });
