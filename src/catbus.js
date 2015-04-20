@@ -53,12 +53,14 @@
         delete hosts[name];
     };
 
+    function demandLocation(name){
+        var locs = catbus._locations;
+        return locs[name] || (locs[name] = new Location(name));
+    }
+
     catbus.at = catbus.location = function(nameOrNames) {
 
-        function demandLocation(name){
-            var locs = catbus._locations;
-            return locs[name] || (locs[name] = new Location(name));
-        }
+
 
         if(typeof nameOrNames === 'string')
             return demandLocation(nameOrNames);
@@ -246,7 +248,7 @@
         active: {name: 'active', type: 'boolean' , prop: '_active', default_set: true},
         sleep: {name: 'sleep', no_arg: true , prop: '_active', default_set: false},
         wake: {name: 'wake', no_arg: true , prop: '_active', default_set: true},
-        on: {name: 'on', alias: ['topic'], type: 'string' , setter: '_setTopic', getter: '_getTopic'},
+        on: {name: 'on', alias: ['topic','sense'], type: 'string' , setter: '_setTopic', getter: '_getTopic'},
         watch:  {name: 'watch', alias: ['location','at'], transform: '_toLocation', valid: '_isLocation', setter: '_setLocation', getter: '_getLocation'},
         transform:  {name: 'transform', type: 'function' , prop: '_transformMethod'},
         run: {name: 'run', type: 'function' , prop: '_callback'},
@@ -295,7 +297,7 @@
                     return this._setAttr(name, value);
             };
 
-        })(config.name);
+        })(c);
 
     }
 
@@ -317,7 +319,7 @@
     };
 
     Sensor.prototype._toLocation = function(nameOrLocation){
-
+        return (typeof nameOrLocation === 'string') ? demandLocation(nameOrLocation) : nameOrLocation;
     };
 
     Sensor.prototype._isLocation = function(location){
@@ -357,6 +359,7 @@
         }
 
     };
+
 
     Sensor.prototype._multiAttr = function(nameOrConfig, value){
 
@@ -513,10 +516,10 @@
             location = newLocation;
         }
 
-        if(location === this._cluster._location) return this;
+        if(location === this._cluster && this._cluster._location) return this;
 
         var origCluster  = this._cluster;
-        var origTopic = origCluster._topic;
+        var origTopic = origCluster && origCluster._topic || 'update';
 
         if(origCluster) // changing clusters with locations, leave the current one
             origCluster._remove(this);
@@ -524,6 +527,25 @@
         var newCluster = this._cluster = location._demandCluster(origTopic);
         newCluster._add(this);
         return this;
+    };
+
+    Sensor.prototype.merge = function() {
+
+        if(!this._multi) return this;
+
+        var sensors = this._multi;
+
+        var mergeLoc = demandLocation('auto:' + (catbus.uid + 1));
+
+        for(var i = 0; i < sensors.length; i++){
+            var s = sensors[i];
+            s.pipe(mergeLoc);
+        }
+
+        this._multi = null;
+
+        return this.at(mergeLoc);
+
     };
 
 
@@ -702,7 +724,7 @@
 
 
 
-    Location.prototype.on = Location.prototype.topic =  function(topic){
+    Location.prototype.on = Location.prototype.topic = Location.prototype.sense =  function(topic){
 
         function createSensor(loc, topic){
             var cluster = loc._demandCluster(topic);
@@ -726,7 +748,7 @@
         for(var i = 0; i < loc_list.length; i++){
             var loc = loc_list[i];
             for(var j = 0; j < topic_list.length; j++){
-                var topic_name = topic[j];
+                var topic_name = topic_list[j];
                 sensors.push(createSensor(loc, topic_name));
             }
         }

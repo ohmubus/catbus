@@ -11,6 +11,12 @@ var _topic;
 var _tag;
 var _context;
 
+var _logger = function(msg, topic, tag){
+
+    console.log("LOG: " + msg + " : " + topic + " : " + tag);
+
+};
+
 var _callback = function(msg, topic, tag){
 
     _context = this;
@@ -99,7 +105,9 @@ describe('Catbus', function(){
         });
 
         it('makes sensors with update topic', function(){
-            var fish = boat.on();
+            var fish = boat.sense();
+            fish.run(_logger);
+            boat.write('scales');
             assert.equal('update', fish.attr('topic'));
         });
 
@@ -115,6 +123,15 @@ describe('Catbus', function(){
             tanks.attr({'keep':'first','topic':'meow'});
             console.log(tanks.attr('keep'));
             console.log(tanks.attr('topic'));
+        });
+
+        it('moooo', function(){
+            var bugs = lands.on();
+            bugs.run(_logger);
+            bugs = bugs.merge();
+            bugs.run(_logger);
+            tree.write('poop');
+            bus.at('desert').write('dry');
         });
 
     });
