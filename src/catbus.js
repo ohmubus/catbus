@@ -212,6 +212,8 @@
         this._postcard = null; // wrapped msg about to be sent...
         this._active = true;
         this._id = ++catbus.uid;
+        this._adapt = null;
+        this._lastAdaptedMsg = undefined;
 
         if(cluster)
             cluster._add(this);
@@ -252,6 +254,7 @@
         on: {name: 'on', alias: ['topic','sense'], type: 'string' , setter: '_setTopic', getter: '_getTopic'},
         watch:  {name: 'watch', alias: ['location','at'], transform: '_toLocation', valid: '_isLocation', setter: '_setLocation', getter: '_getLocation'},
         transform:  {name: 'transform', type: 'function' , prop: '_transformMethod'},
+        adapt: {name: 'adapt', type: 'function', prop:'_adapt'},
         run: {name: 'run', type: 'function' , prop: '_callback'},
         filter: {name: 'filter', type: 'function' , prop: '_filter'},
         as: {name: 'as', type: 'object' , prop: '_context'},
@@ -560,7 +563,7 @@
         return this;
     };
 
-    Sensor.prototype.merge = function() {
+    Sensor.prototype.merge = Sensor.prototype.next =function() {
 
         var sensors = this._multi || [this];
 
@@ -573,7 +576,7 @@
 
         this._multi = null;
 
-        return this.at(mergeLoc);
+        return mergeLoc.sense();
 
     };
 
@@ -593,13 +596,22 @@
         if(!this._active)
             return this;
 
+        msg = (this._adapt) ? this._adapt.call(this._context || this, msg, topic, tag) : msg;
+        if(this._change && this._lastAdaptedMsg === msg)
+            return this;
+
+        this._lastAdaptedMsg = msg;
+
+        // todo add ability for change to be a function hasChanged(msg, last_msg) return true is diff
+        // todo functor city
+
         if(!this._callback && !this._pipe)
             return this; // no actions to take
 
         if(this._filter && !this._filter.call(this._context || this, msg, topic, tag))
             return this; // message filtered out
 
-        if(!this._batch)
+        if(!this._batch) // todo take this restriction away when not framework issue
             msg = (this._transformMethod) ? this._transformMethod.call(this._context || this, msg, topic, tag) : msg;
 
         if (this._batch || this._group) { // create lists of messages grouped by tag and list in order
@@ -694,9 +706,9 @@
 
         var postcard = this._postcard;
 
-        if(!this._batch && !this._group && this._change && this._last && this._last.msg === postcard.msg) {
-                return this;
-        }
+        //if(!this._batch && !this._group && this._change && this._last && this._last.msg === postcard.msg) {
+        //        return this;
+        //}
 
         this._last = postcard;
 
