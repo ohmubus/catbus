@@ -16,30 +16,37 @@
  *
  */
 
-// todo batching always makes new sensor
-// todo merge always makes new sensor
-
-;(function (root, factory) {
-    if(typeof define === "function" && define.amd) {
-        define(factory);
-    } else if(typeof module === "object" && module.exports) {
-        module.exports = factory();
-    } else {
-        root.catbus = factory();
-    }
-}(this, (function(){
+;(function(){
 
     var catbus = {};
 
-    var createQueueFrame = function(){
+    function createQueueFrame() {
         return  {defer:[], batch:[], batchAndDefer:[]};
-    };
+    }
+
+    function demandLocation(name){
+        var locs = catbus._locations;
+        return locs[name] || (locs[name] = new Location(name));
+    }
+
+    function createSensor(topic, loc){
+        return new Sensor(topic, loc);
+    }
+
+    function createFunctor(val) {
+        return (typeof val === 'function') ? val : function() { return val; };
+    }
+
 
     catbus.uid = 0;
     catbus._locations = {};
     catbus._hosts = {};
     catbus._primed = false;
     catbus._queueFrame = createQueueFrame();
+
+    catbus.sense = function(topic){
+        return createSensor(topic);
+    };
 
     catbus.dropHost = function(name){
 
@@ -55,11 +62,6 @@
 
         delete hosts[name];
     };
-
-    function demandLocation(name){
-        var locs = catbus._locations;
-        return locs[name] || (locs[name] = new Location(name));
-    }
 
     catbus.at = catbus.location = function(nameOrNames) {
 
@@ -130,6 +132,7 @@
     };
 
 
+
     catbus.flush = function(){
 
         this._primed = false;
@@ -189,10 +192,11 @@
     };
 
 
-    var Sensor = function(cluster) {
+    var Sensor = function(topic, loc) {
+
+        topic = topic || 'update'; // change default to *?
 
         this._multi = null; // list of sensors to process through sensor api
-        this._cluster = cluster;
         this._callback = null;
         this._context = null;
         this._max = null;
@@ -212,11 +216,13 @@
         this._postcard = null; // wrapped msg about to be sent...
         this._active = true;
         this._id = ++catbus.uid;
-        this._adapt = null;
-        this._lastAdaptedMsg = undefined;
+        this._appear = null;
+        this._lastAppearingMsg = undefined;
+        this._dropped = false;
+        this._cluster = loc ? loc._demandCluster(topic) : null;
+        if(this._cluster)
+            this._cluster._add(this);
 
-        if(cluster)
-            cluster._add(this);
     };
 
 
@@ -253,8 +259,8 @@
         wake: {name: 'wake', no_arg: true , prop: '_active', default_set: true},
         on: {name: 'on', alias: ['topic','sense'], type: 'string' , setter: '_setTopic', getter: '_getTopic'},
         watch:  {name: 'watch', alias: ['location','at'], transform: '_toLocation', valid: '_isLocation', setter: '_setLocation', getter: '_getLocation'},
-        transform:  {name: 'transform', type: 'function' , prop: '_transformMethod'},
-        adapt: {name: 'adapt', type: 'function', prop:'_adapt'},
+        transform:  {name: 'transform', type: 'function', functor: true, prop: '_transformMethod'},
+        appear: {name: 'appear', type: 'function', functor: true, prop:'_appear'},
         run: {name: 'run', type: 'function' , prop: '_callback'},
         filter: {name: 'filter', type: 'function' , prop: '_filter'},
         as: {name: 'as', type: 'object' , prop: '_context'},
@@ -442,6 +448,7 @@
     Sensor.prototype._setAttr = function(name, value){
 
 
+
         var c = sensor_config[name];
 
         if(!c)
@@ -462,7 +469,10 @@
         if(c.valid && !((this[c.valid])(value)))
             this.throwError('Sensor set attribute [' + name + '] value invalid: ' + value);
 
-        if(c.type && value && !(c.type === typeof value))
+        if(typeof value !== 'function' && c.functor)
+            value = createFunctor(value);
+
+        if(c.type && value && c.type !== typeof value)
             this.throwError('Sensor set attribute [' + name + '] type mismatch: ' + value);
 
         if(c.options && c.options.indexOf(value) === -1)
@@ -582,25 +592,34 @@
 
 
     Sensor.prototype.drop = function(){
-        if(!this._cluster){
+
+        if(this._dropped)
             return this;
-        }
+
+        this._dropped = true;
+        this._active = false;
         this.host(null);
-        this._cluster._remove(this);
-        this._cluster = null;
+        if(this._cluster) {
+            this._cluster._remove(this);
+            this._cluster = null;
+        }
+
         return this;
+
     };
+
+
 
     Sensor.prototype.tell = function(msg, topic, tag) {
 
-        if(!this._active)
+        if(!this._active || this._dropped)
             return this;
 
-        msg = (this._adapt) ? this._adapt.call(this._context || this, msg, topic, tag) : msg;
-        if(this._change && this._lastAdaptedMsg === msg)
+        msg = (this._appear) ? this._appear.call(this._context || this, msg, topic, tag) : msg;
+        if(this._change && this._lastAppearingMsg === msg)
             return this;
 
-        this._lastAdaptedMsg = msg;
+        this._lastAppearingMsg = msg;
 
         // todo add ability for change to be a function hasChanged(msg, last_msg) return true is diff
         // todo functor city
@@ -634,7 +653,7 @@
 
         this._primed = true;
 
-        if ((this._batch)|| this._defer) {
+        if (this._batch || this._defer) {
             this._bus.queue(this);
         } else {
             this.send();
@@ -688,7 +707,7 @@
 
     Sensor.prototype.send = function() {
 
-        if(!this._cluster)
+        if(this._dropped)
             return this; // dropped while batching?
 
         if(this._group) {
@@ -744,7 +763,7 @@
         this._tag = name; // default
         this._name = name;
         this._clusters = {}; // by topic
-
+        this._appear = null;
         this._demandCluster('update'); // default for data storage
 
     };
@@ -763,14 +782,13 @@
         return this._name || null;
     };
 
+    Location.prototype.appear = function(f){
+        this._appear = createFunctor(f);
+        return this;
+    };
 
 
     Location.prototype.on = Location.prototype.topic = Location.prototype.sense =  function(topic){
-
-        function createSensor(loc, topic){
-            var cluster = loc._demandCluster(topic);
-            return new Sensor(cluster);
-        }
 
         var topic_list;
         var loc_list;
@@ -781,16 +799,16 @@
         loc_list = this._multi || [this];
 
         if(loc_list.length === 1 && topic_list.length === 1)
-            return createSensor(this, topic_list[0]);
+            return createSensor(topic_list[0], this);
 
-        var multiSensor = new Sensor();
+        var multiSensor = createSensor('update', this);
         var sensors = multiSensor._multi = [];
 
         for(var i = 0; i < loc_list.length; i++){
             var loc = loc_list[i];
             for(var j = 0; j < topic_list.length; j++){
                 var topic_name = topic_list[j];
-                sensors.push(createSensor(loc, topic_name));
+                sensors.push(createSensor(topic_name, loc));
             }
         }
 
@@ -839,6 +857,9 @@
         topic = topic || 'update';
         tag = tag || this.tag();
 
+        // add context code
+        msg = (this._appear) ? this._appear.call(this._context || this, msg, topic, tag) : msg;
+
         this._demandCluster(topic);
 
         for(var t in this._clusters){
@@ -857,6 +878,42 @@
         this.write(!this.read(topic),topic, tag);
     };
 
-    return catbus;
 
-})));
+    catbus.$ = {};
+
+    catbus.$.sense = function(event) {
+
+        var sensor = catbus.sense();
+
+        this.on(event, function(){
+
+            var val = [event];
+            for(var i = 0; i < arguments.length; i++){
+                val.push(arguments[i]);
+            }
+            sensor.tell(val);
+
+        });
+
+        return sensor;
+
+    };
+
+    var selector = typeof jQuery !== 'undefined' && jQuery !== null ? jQuery : null;
+    selector = selector || (typeof Zepto !== 'undefined' && Zepto !== null ? Zepto : null);
+    if(selector)
+        selector.fn.sense = catbus.$.sense;
+
+    if ((typeof define !== "undefined" && define !== null) && (define.amd != null)) {
+        define([], function() {
+            return catbus;
+        });
+        this.catbus = catbus;
+    } else if ((typeof module !== "undefined" && module !== null) && (module.exports != null)) {
+        module.exports = catbus;
+        catbus.catbus = catbus;
+    } else {
+        this.catbus = catbus;
+    }
+
+}).call(this);
