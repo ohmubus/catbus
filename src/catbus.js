@@ -219,6 +219,7 @@
         this._appear = null;
         this._lastAppearingMsg = undefined;
         this._dropped = false;
+        this._locked = false;
         this._cluster = loc ? loc._demandCluster(topic) : null;
         if(this._cluster)
             this._cluster._add(this);
@@ -247,7 +248,7 @@
         keep: {name: 'keep', options: ['last', 'first', 'all'], prop: '_keep', default_set: 'last'},
         retain: {name: 'retain', type: 'boolean', prop: '_retain', default_set: true},
         need: {name: 'need', transform: '_toStringArray', valid: '_isStringArray', prop: '_needs'}, // todo, also accept [locs] to tags
-        host:  {name: 'host', type: 'string', setter: '_setHost', prop: '_host'},
+        host:  {name: 'host', transform: '_toString', type: 'string', setter: '_setHost', prop: '_host'},
         defer: {name: 'defer', type: 'boolean' , prop: '_defer', default_set: true},
         batch: {name: 'batch', type: 'boolean' , prop: '_batch', default_set: true},
         change: {name: 'change', type: 'boolean' , prop: '_change', default_set: true},
@@ -259,8 +260,8 @@
         wake: {name: 'wake', no_arg: true , prop: '_active', default_set: true},
         on: {name: 'on', alias: ['topic','sense'], type: 'string' , setter: '_setTopic', getter: '_getTopic'},
         watch:  {name: 'watch', alias: ['location','at'], transform: '_toLocation', valid: '_isLocation', setter: '_setLocation', getter: '_getLocation'},
-        transform:  {name: 'transform', type: 'function', functor: true, prop: '_transformMethod'},
-        appear: {name: 'appear', type: 'function', functor: true, prop:'_appear'},
+        exit:  {name: 'exit', alias: ['transform'], type: 'function', functor: true, prop: '_transformMethod'},
+        enter: {name: 'enter', type: 'function', functor: true, prop:'_appear'},
         run: {name: 'run', type: 'function' , prop: '_callback'},
         filter: {name: 'filter', type: 'function' , prop: '_filter'},
         as: {name: 'as', type: 'object' , prop: '_context'},
@@ -345,6 +346,10 @@
         if(typeof stringOrStringArray === 'string')
             stringOrStringArray = stringOrStringArray.split(',');
         return stringOrStringArray;
+    };
+
+    Sensor.prototype._toString = function(value){
+        return value + '';
     };
 
     Sensor.prototype._isStringArray = function(value){
@@ -707,7 +712,7 @@
 
     Sensor.prototype.send = function() {
 
-        if(this._dropped)
+        if(!this._active || this._dropped)
             return this; // dropped while batching?
 
         if(this._group) {
@@ -782,7 +787,7 @@
         return this._name || null;
     };
 
-    Location.prototype.appear = function(f){
+    Location.prototype.transform = function(f){
         this._appear = createFunctor(f);
         return this;
     };
