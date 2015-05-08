@@ -1,5 +1,5 @@
 /**
- * catbus.js (v0.10.0)
+ * catbus.js (v0.9.5)
  *
  * Copyright (c) 2015 Scott Southworth, Landon Barnickle & Contributors
  *
@@ -635,14 +635,14 @@
         if(this._filter && !this._filter.call(this._context || this, msg, topic, tag))
             return this; // message filtered out
 
-        if(!this._batch) // todo take this restriction away when not framework issue
-            msg = (this._transformMethod) ? this._transformMethod.call(this._context || this, msg, topic, tag) : msg;
+        //if(!this._batch) // todo take this restriction away when not framework issue
 
         if (this._batch || this._group) { // create lists of messages grouped by tag and list in order
             var list = this._batchedByTag[tag] = this._batchedByTag[tag] || [];
             list.push(msg);
             this._batchedAsList.push(msg);
         } else {
+            msg = (this._transformMethod) ? this._transformMethod.call(this._context || this, msg, topic, tag) : msg;
             this._postcard = catbus.envelope(msg, topic, tag, this);
         }
 
@@ -687,7 +687,12 @@
         }
 
         if(!this._retain) this._batchedByTag = {};
-        this._postcard = catbus.envelope(consolidated, 'update', this._getTag(), this);
+
+        var msg = consolidated;
+        msg = (this._transformMethod) ? this._transformMethod.call(this._context || this, msg, topic, tag) : msg;
+
+
+        this._postcard = catbus.envelope(msg, 'update', this._getTag(), this);
 
     };
 
@@ -705,6 +710,7 @@
             msg = msgs;
         }
 
+        msg = (this._transformMethod) ? this._transformMethod.call(this._context || this, msg, topic, tag) : msg;
         this._postcard = catbus.envelope(msg, 'update', this._getTag(), this);
 
     };
@@ -886,18 +892,12 @@
 
     catbus.$ = {};
 
-    catbus.$.sense = function(event) {
+    catbus.$.sense = function(eventName) {
 
         var sensor = catbus.sense();
 
-        this.on(event, function(){
-
-            var val = [event];
-            for(var i = 0; i < arguments.length; i++){
-                val.push(arguments[i]);
-            }
-            sensor.tell(val);
-
+        this.on(eventName, function(event){
+            sensor.tell(event, eventName);
         });
 
         return sensor;

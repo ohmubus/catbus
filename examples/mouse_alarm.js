@@ -18,13 +18,17 @@ function getRandomItem(list){ return list[Math.floor(Math.random()*list.length)]
 // add split to sensor
 // add adapt to sensor
 
+bus.at('kitchen').sense().run(function(msg, topic, tag){ console.log(msg + ' in the Kitchen!' + ":"+topic+":"+tag);});
+
 rooms.sense().filter(isMouse).transform(toInfo).merge().keep('last').batch().run(speaker);
 rooms.sense().filter(isMouse).run(beeper);
 rooms.sense().merge().group().keep('all').batch().run(logger);
 
 for(var i = 0; i < 20; i++){
-    var room = bus.at(getRandomItem(room_names));
-    room.write(getRandomItem(sounds));
+    var room_name = getRandomItem(room_names);
+    var room = bus.at(room_name);
+    var sound = getRandomItem(sounds);
+    room.write(sound);
 }
 
 bus.flush();
