@@ -452,8 +452,6 @@
 
     Sensor.prototype._setAttr = function(name, value){
 
-
-
         var c = sensor_config[name];
 
         if(!c)
