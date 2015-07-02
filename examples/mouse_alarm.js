@@ -13,11 +13,6 @@ var rooms = bus.at(room_names);
 
 function getRandomItem(list){ return list[Math.floor(Math.random()*list.length)]; }
 
-// add merge to sensor
-// add tag to sensor and location
-// add split to sensor
-// add adapt to sensor
-
 bus.at('kitchen').sense().run(function(msg, topic, tag){ console.log(msg + ' in the Kitchen!' + ":"+topic+":"+tag);});
 
 rooms.sense().filter(isMouse).transform(toInfo).merge().keep('last').batch().run(speaker);

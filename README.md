@@ -11,43 +11,36 @@ Designed as a standalone Javascript library, Catbus provides a pub/sub implement
 
 var bus = require('../src/catbus.js');
 
-var sensor = function(msg) { console.log(msg); };
-var beeper = function(msg) { console.log('beeper: mouse now in ' + msg); };
-var speaker = function(msg){ console.log('speaker: mouse last detected in ' + msg); };
-var isMouse = function(msg){ return msg === 'scurry'; };
-var toTag = function(msg, topic, tag) { return tag; };
+var logger = function(msg) { console.log(msg); };
+var beeper = function(msg, topic, tag) { console.log('beeper: mouse now in ' + tag); };
+var speaker = function(msg) { console.log('speaker: mouse last detected in: ' + msg.from); };
 
-var alarm = bus.at('alarm');
-var kitchen = bus.at('kitchen');
-var hall = bus.at('hall');
-var den = bus.at('den');
-var tracker = bus.at('tracker');
+var isMouse = function(msg){ return msg === 'squeak'; };
+var toInfo = function(msg, topic, tag) { return {sound: msg, from: tag}; };
 
-alarm.on().batch().keep('last').run(speaker).host('test');
-tracker.on('update').filter(isMouse).transform(toTag).pipe(alarm).host('test');
-tracker.on('update').filter(isMouse).transform(toTag).run(beeper).host('test');
-tracker.on('update').batch().group().keep('all').run(sensor).host('test');
+var sounds = ['squeak','growl','meow','woof'];
+var room_names = ['kitchen','hall','den','bathroom'];
+var rooms = bus.at(room_names);
 
-kitchen.on().pipe(tracker).host('test');
-hall.on().pipe(tracker).host('test');
-den.on().pipe(tracker).host('test');
+function getRandomItem(list){ return list[Math.floor(Math.random()*list.length)]; }
 
-den.write('bounce');
-den.write('skip');
-kitchen.write('scurry');
-hall.write('scurry');
-hall.write('flip');
+bus.at('kitchen').sense().run(function(msg, topic, tag){ console.log(msg + ' in the Kitchen!' + ":"+topic+":"+tag);});
+
+rooms.sense().filter(isMouse).transform(toInfo).merge().keep('last').batch().run(speaker);
+rooms.sense().filter(isMouse).run(beeper);
+rooms.sense().merge().group().keep('all').batch().run(logger);
+
+for(var i = 0; i < 20; i++){
+    var room_name = getRandomItem(room_names);
+    var room = bus.at(room_name);
+    var sound = getRandomItem(sounds);
+    room.write(sound);
+}
 
 bus.flush();
 
 bus.dropHost('test');
 
-// beeper: mouse now in kitchen
-// beeper: mouse now in hall
-// { den: [ 'bounce', 'skip' ],
-//   kitchen: [ 'scurry' ],
-//   hall: [ 'scurry', 'flip' ] }
-// speaker: mouse last detected in hall
 
 ```
 
