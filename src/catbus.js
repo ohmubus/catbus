@@ -945,7 +945,7 @@
 
     catbus.$ = {};
 
-    catbus.$.sense = function(eventName) {
+    catbus.$.sense = catbus.$.detect = function(eventName) {
 
         var sensor = catbus.sense();
 
@@ -960,7 +960,7 @@
     var selector = typeof jQuery !== 'undefined' && jQuery !== null ? jQuery : null;
     selector = selector || (typeof Zepto !== 'undefined' && Zepto !== null ? Zepto : null);
     if(selector)
-        selector.fn.sense = catbus.$.sense;
+        selector.fn.sense = selector.fn.detect = catbus.$.detect;
 
     if ((typeof define !== "undefined" && define !== null) && (define.amd != null)) {
         define([], function() {
