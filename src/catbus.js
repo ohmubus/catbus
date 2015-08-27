@@ -1,5 +1,5 @@
 /**
- * catbus.js (v1.1.0)
+ * catbus.js (v1.1.1)
  *
  * Copyright (c) 2015 Scott Southworth, Landon Barnickle & Contributors
  *
@@ -586,7 +586,7 @@
             var s = sensors[i];
             var packet = s.peek();
             if(packet && packet.msg != undefined)
-                s.tell(packet.msg, packet.topic);
+                s.tell(packet.msg, packet.topic, packet.tag);
         }
 
         return this;
