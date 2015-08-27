@@ -1,5 +1,5 @@
 /**
- * catbus.js (v1.1.0)
+ * catbus.js (v1.1.2)
  *
  * Copyright (c) 2015 Scott Southworth, Landon Barnickle & Contributors
  *
@@ -230,6 +230,7 @@
 
     };
 
+    // todo add location and sensor reset methods, use with object pooling
 
     Sensor.prototype.throwError = function(msg){
         throw {error:"Catbus: Sensor", msg: msg, sensor: this};
@@ -586,7 +587,7 @@
             var s = sensors[i];
             var packet = s.peek();
             if(packet && packet.msg != undefined)
-                s.tell(packet.msg, packet.topic);
+                s.tell(packet.msg, packet.topic, packet.tag);
         }
 
         return this;
@@ -824,8 +825,26 @@
         this._name = name;
         this._clusters = {}; // by topic
         this._appear = null;
+        this._service = null;
+        this._demandCluster('*'); // wildcard storage location for all topics
         this._demandCluster('update'); // default for data storage
 
+    };
+
+    Location.prototype.service = function(service){
+        if(arguments.length === 0)
+            return this._service;
+
+        this._service = service;
+        return this;
+    };
+
+    Location.prototype.req = Location.prototype.request = function(params){
+        if(params){
+            this._service.request(params);
+        }  else {
+            this._service.request();
+        }
     };
 
     Location.prototype.destroy = function(){
@@ -942,10 +961,9 @@
         this.write(!this.read(topic),topic, tag);
     };
 
-
     catbus.$ = {};
 
-    catbus.$.sense = function(eventName) {
+    catbus.$.sense = catbus.$.detect = function(eventName) {
 
         var sensor = catbus.sense();
 
@@ -960,7 +978,7 @@
     var selector = typeof jQuery !== 'undefined' && jQuery !== null ? jQuery : null;
     selector = selector || (typeof Zepto !== 'undefined' && Zepto !== null ? Zepto : null);
     if(selector)
-        selector.fn.sense = catbus.$.sense;
+        selector.fn.sense = selector.fn.detect = catbus.$.detect;
 
     if ((typeof define !== "undefined" && define !== null) && (define.amd != null)) {
         define([], function() {
