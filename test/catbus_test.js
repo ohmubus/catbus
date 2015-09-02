@@ -32,6 +32,11 @@ var _script = {
     ohmu: 999
 };
 
+
+
+
+var tree, boat, castle, valley, airship, girl, ohmu, yupa, lands;
+
 var _reset = function(){
 
     _context = undefined;
@@ -40,10 +45,9 @@ var _reset = function(){
     _tag = undefined;
     _invoked = 0;
 
+   // if(girl) { girl.drop(); girl = null;}
+
 };
-
-
-var tree, boat, castle, valley, airship, girl, ohmu, yupa, lands;
 
 castle = bus.at('castle');
 valley  = bus.at('valley');
@@ -87,6 +91,35 @@ describe('Catbus', function(){
             assert.equal('Catbus', tree.read());
         });
 
+        it('can adapt data', function(){
+
+            tree.adapt('meow');
+            tree.write('Kittenbus');
+            assert.equal('meow', tree.read());
+            tree.write('Catbus');
+            assert.equal('meow', tree.read());
+        });
+
+        it('can adapt data dynamically with topics', function(){
+
+            tree.adapt(function(msg, topic, tag){ return msg + ':' + topic + ':' + tag});
+            tree.write('Kittenbus','look','kitten');
+            assert.equal('Kittenbus:look:kitten', tree.read('look'));
+            tree.write('Catbus');
+            assert.equal('Catbus:update:tree', tree.read());
+
+        });
+
+        it('can clear adapt', function(){
+
+            tree.adapt();
+            tree.write('Kittenbus','look','kitten');
+            assert.equal('Kittenbus', tree.read('look'));
+            tree.write('Catbus');
+            assert.equal('Catbus', tree.read());
+
+        });
+
         it('can toggle data', function(){
             tree.write('Mei');
             tree.toggle();
@@ -108,21 +141,18 @@ describe('Catbus', function(){
             var fish = boat.sense();
             fish.run(_logger);
             boat.write('scales');
-            assert.equal('update', fish.attr('topic'));
+            assert.equal('update', fish.attr('on'));
         });
 
         it('and other topics', function(){
             var fish = boat.on('waves');
-            assert.equal('waves', fish.attr('topic'));
+            assert.equal('waves', fish.attr('on'));
         });
 
         it('makes multi-sensors with topics', function(){
             var tanks = lands.on(['update','destroy']);
-            console.log(tanks.attr('keep'));
             assert.equal(6, tanks.attr('tag').length);
-            tanks.attr({'keep':'first','topic':'meow'});
-            console.log(tanks.attr('keep'));
-            console.log(tanks.attr('topic'));
+            tanks.attr({'keep':'first','on':'meow'});
         });
 
         it('moooo', function(){
@@ -152,7 +182,6 @@ describe('Catbus', function(){
                 assert.equal(1, _invoked);
                 girl.drop();
             });
-
 
 
         });
@@ -213,14 +242,77 @@ describe('Catbus', function(){
         });
 
 
+        describe('transformations', function() {
+
+            beforeEach(function(){
+                _reset();
+                girl = castle.on('update').as(_script).run(_callback);
+            });
+
+            afterEach(function(){
+                girl.drop();
+            });
+
+            it('can adapt incoming message', function () {
+                girl.adapt('meow');
+                castle.write('Howl flies'); // topic defaults to update
+                assert.equal(1, _invoked); // invoke callback once more
+                assert.equal('meow', _msg); // invoke callback once more
+            });
+
+            it('can clear adapt for incoming message', function () {
+                girl.adapt();
+                castle.write('iron'); // topic defaults to update
+                assert.equal(1, _invoked); // invoke callback once more
+                assert.equal('iron', _msg); // invoke callback once more
+            });
+
+            it('can adapt incoming message dynamically', function () {
+                girl.on('amulet').adapt(function(msg, topic, tag){ return msg + ':' + topic + ':' + tag;});
+                castle.write('sky', 'amulet');
+                assert.equal(1, _invoked); // invoke callback once more
+                assert.equal('sky:amulet:castle', _msg); // receive concatenated msg result
+            });
+
+
+            it('can adapt incoming message dynamically then transform output', function () {
+                girl.on('amulet').adapt('blue').change();
+                castle.write('sky', 'amulet');
+                assert.equal(1, _invoked); // invoke callback once more
+                assert.equal('blue', _msg); // receive adapted msg result
+                girl.transform('green');
+                castle.write('stone', 'amulet');
+                assert.equal(1, _invoked); // callback blocked by change and adapt combo
+                girl.change(false);
+                castle.write('stone', 'amulet');
+                assert.equal(2, _invoked); // invoke callback once more with change off
+                assert.equal('green', _msg); // receive transformed msg result
+            });
+
+            it('can emit outgoing topic', function () {
+                girl.emit('meow');
+                castle.write('robot'); // topic defaults to update
+                assert.equal(1, _invoked); // invoke callback once more
+                assert.equal('robot', _msg); //
+                assert.equal('meow', _topic); // topic is emitted as meow now instead of update
+            });
+
+        });
 
 
         describe('alternate topics', function() {
 
-            _reset();
+            beforeEach(function(){
+                _reset();
+                girl = castle.on('update').as(_script).run(_callback);
+            });
 
-            it('runs callback', function () {
-                girl = castle.on('fly').run(_callback);
+            afterEach(function(){
+                girl.drop();
+            });
+
+            it('runs callback on topic', function () {
+                girl.on('fly').run(_callback);
                 castle.write('Howl flies', 'fly');
                 assert.equal(1, _invoked);
             });
@@ -230,15 +322,21 @@ describe('Catbus', function(){
                 assert.equal(1, _invoked); // did not invoke callback again
             });
 
-            it('can change to old topic', function () {
-                girl = castle.on('update').run(_callback);
-                castle.write('Howl flies'); // topic defaults to update
-                assert.equal(2, _invoked); // invoke callback once more
+            it('can change to topic multiple times', function () {
+
+                girl.on('fly').run(_callback); // should no longer listen to topic 'fly' only 'update'
+                girl.on('update');
+                girl.on('fly'); // should no longer listen to topic 'fly' only 'update'
+
+                castle.write('Howl flies', 'fly');
+                castle.write('Howl flies', 'update'); // topic defaults to update
+                assert.equal(1, _invoked); // callback invoked once more
+                assert.equal('fly', _topic);
+
             });
 
             it('still drops subscription to all', function () {
 
-                _reset();
                 girl.drop();
                 castle.write('Howl moves');
                 assert.equal('Howl moves', castle.read()); // location has new data

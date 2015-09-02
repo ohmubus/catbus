@@ -34,6 +34,7 @@
     }
 
     function createFunctor(val) {
+        if(val === undefined) return undefined;
         return (typeof val === 'function') ? val : function() { return val; };
     }
 
@@ -219,7 +220,7 @@
         this._postcard = null; // wrapped msg about to be sent...
         this._active = true;
         this._id = ++catbus.uid;
-        this._appear = null;
+        this._appear = undefined;
         this._lastAppearingMsg = undefined;
         this._dropped = false;
         this._locked = false;
@@ -233,7 +234,7 @@
     // todo add location and sensor reset methods, use with object pooling
 
     Sensor.prototype.throwError = function(msg){
-        throw {error:"Catbus: Sensor", msg: msg, sensor: this};
+        throw {error:"Catbus: Sensor", msg: msg, topic: this._getTopic(), tag: this._getTag() };
     };
 
 
@@ -259,6 +260,7 @@
         change: {name: 'change', type: 'boolean' , prop: '_change', default_set: true},
         group: {name: 'group', type: 'boolean' , prop: '_group', default_set: true, setter: '_setGroup'},
         pipe: {name: 'pipe', valid: '_isLocation', prop: '_pipe'},
+        emit: {name: 'emit', prop: '_emit', functor: true},
         name: {name: 'name', type: 'string' , prop: '_name'},
         active: {name: 'active', type: 'boolean' , prop: '_active', default_set: true},
         sleep: {name: 'sleep', no_arg: true , prop: '_active', default_set: false},
@@ -266,7 +268,7 @@
         on: {name: 'on', alias: ['topic','sense'], type: 'string' , setter: '_setTopic', getter: '_getTopic'},
         watch:  {name: 'watch', alias: ['location','at'], transform: '_toLocation', valid: '_isLocation', setter: '_setLocation', getter: '_getLocation'},
         exit:  {name: 'exit', alias: ['transform'], type: 'function', functor: true, prop: '_transformMethod'},
-        enter: {name: 'enter', type: 'function', functor: true, prop:'_appear'},
+        enter: {name: 'enter', alias: ['adapt'], type: 'function', functor: true, prop:'_appear'},
         run: {name: 'run', type: 'function' , prop: '_callback'},
         filter: {name: 'filter', type: 'function' , prop: '_filter'},
         as: {name: 'as', type: 'object' , prop: '_context'},
@@ -672,7 +674,7 @@
         if(!this._active || this._dropped)
             return this;
 
-        msg = (this._appear) ? this._appear.call(this._context || this, msg, topic, tag) : msg;
+        msg = (typeof this._appear === 'function') ? this._appear.call(this._context || this, msg, topic, tag) : msg;
         if(this._change && this._lastAppearingMsg === msg)
             return this;
 
@@ -695,6 +697,7 @@
             this._batchedAsList.push(msg);
         } else {
             msg = (this._transformMethod) ? this._transformMethod.call(this._context || this, msg, topic, tag) : msg;
+            topic = (this._emit) ? this._emit.call(this._context || this, msg, topic, tag) : topic;
             this._postcard = catbus.envelope(msg, topic, tag, this);
         }
 
@@ -741,9 +744,13 @@
         if(!this._retain) this._batchedByTag = {};
 
         var msg = consolidated;
-        msg = (this._transformMethod) ? this._transformMethod.call(this._context || this, msg, 'update', this._getTag()) : msg;
+        var topic = this._getTopic();
+        var tag = this._getTag();
 
-        this._postcard = catbus.envelope(msg, 'update', this._getTag(), this);
+        msg = (this._transformMethod) ? this._transformMethod.call(this._context || this, msg, topic, tag) : msg;
+        topic = (this._emit) ? this._emit.call(this._context || this, msg, topic , tag) : topic;
+
+        this._postcard = catbus.envelope(msg, topic, tag, this);
 
     };
 
@@ -761,8 +768,13 @@
             msg = msgs;
         }
 
-        msg = (this._transformMethod) ? this._transformMethod.call(this._context || this, msg, 'update', this._getTag()) : msg;
-        this._postcard = catbus.envelope(msg, 'update', this._getTag(), this);
+        var topic = this._getTopic();
+        var tag = this._getTag();
+
+        msg = (this._transformMethod) ? this._transformMethod.call(this._context || this, msg, topic, tag) : msg;
+        topic = (this._emit) ? this._emit.call(this._context || this, msg, topic , tag) : topic;
+
+        this._postcard = catbus.envelope(msg, topic, tag, this);
 
     };
 
@@ -824,7 +836,7 @@
         this._tag = name; // default
         this._name = name;
         this._clusters = {}; // by topic
-        this._appear = null;
+        this._appear = undefined;
         this._service = null;
         this._demandCluster('*'); // wildcard storage location for all topics
         this._demandCluster('update'); // default for data storage
@@ -865,7 +877,7 @@
         return this._name || null;
     };
 
-    Location.prototype.transform = function(f){
+    Location.prototype.adapt = Location.prototype.transform = function(f){
         this._appear = createFunctor(f);
         return this;
     };
@@ -941,7 +953,7 @@
         tag = tag || this.tag();
 
         // add context code
-        msg = (this._appear) ? this._appear.call(this._context || this, msg, topic, tag) : msg;
+        msg = (typeof this._appear === 'function') ? this._appear.call(this._context || this, msg, topic, tag) : msg;
 
         this._demandCluster(topic);
 
