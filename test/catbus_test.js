@@ -49,18 +49,18 @@ var _reset = function(){
 
 };
 
-castle = bus.at('castle');
-valley  = bus.at('valley');
-airship  = bus.at('airship');
+castle = bus.location('castle');
+valley  = bus.location('valley');
+airship  = bus.location('airship');
 
 
 
 describe('Catbus', function(){
 
     before(function(){
-        tree = bus.at('tree');
-        boat = bus.at('boat').tag('Ponyo');
-        lands = bus.at(['tree','boat','desert']);
+        tree = bus.location('tree');
+        boat = bus.location('boat').tag('Ponyo');
+        lands = bus.location(['tree','boat','desert']);
     });
 
     describe('Locations', function(){
@@ -138,7 +138,7 @@ describe('Catbus', function(){
         });
 
         it('makes sensors with update topic', function(){
-            var fish = boat.sense();
+            var fish = boat.sensor();
             fish.run(_logger);
             boat.write('scales');
             assert.equal('update', fish.attr('on'));
@@ -156,12 +156,12 @@ describe('Catbus', function(){
         });
 
         it('moooo', function(){
-            var bugs = lands.on();
+            var bugs = lands.sensor();
             bugs.run(_logger);
             bugs = bugs.merge();
             bugs.run(_logger);
             tree.write('poop');
-            bus.at('desert').write('dry');
+            bus.location('desert').write('dry');
         });
 
     });
@@ -295,6 +295,23 @@ describe('Catbus', function(){
                 assert.equal(1, _invoked); // invoke callback once more
                 assert.equal('robot', _msg); //
                 assert.equal('meow', _topic); // topic is emitted as meow now instead of update
+            });
+
+            it('can clear emit topic', function () {
+                girl.emit('sword');
+                girl.emit();
+                castle.write('insect'); // topic defaults to update
+                assert.equal(1, _invoked); // invoke callback once more
+                assert.equal('insect', _msg); //
+                assert.equal('update', _topic); // topic is emitted as meow now instead of update
+            });
+
+            it('can dynamically emit topic', function () {
+                girl.emit(function(msg){ return msg + ' strike'});
+                castle.write('insect'); // topic defaults to update
+                assert.equal(1, _invoked); // invoke callback once more
+                assert.equal('insect', _msg); //
+                assert.equal('insect strike', _topic); // topic is emitted as meow now instead of update
             });
 
         });
@@ -527,6 +544,30 @@ describe('Catbus', function(){
                 bus.flush();
                 assert.equal(1, _invoked);
                 assert.equal(3, _msg.length);
+
+            });
+
+            it('batches all and sets emit topics', function () {
+
+                girl.keep('all').emit(function(msg){ return 'count is ' + msg.length;});
+                floodCastle();
+                bus.flush();
+                assert.equal(1, _invoked);
+                assert.equal(3, _msg.length);
+                assert.equal('count is 3', _topic);
+            });
+
+            it('batch into groups with emit topics', function () {
+
+                girl.group().emit(function(msg){ return 'fish is ' + msg.fish;});
+                floodCastle();
+                floodWorld();
+                bus.flush();
+                assert.equal(1, _invoked);
+                assert.equal('San', _msg.castle);
+                assert.equal('Ponyo', _msg.fish);
+                assert.equal('Yupa', _msg.spores);
+                assert.equal('fish is Ponyo', _topic);
 
             });
 

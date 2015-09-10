@@ -1,5 +1,5 @@
 /**
- * catbus.js (v1.1.2)
+ * catbus.js (v2.0.0)
  *
  * Copyright (c) 2015 Scott Southworth, Landon Barnickle & Contributors
  *
@@ -17,6 +17,8 @@
  */
 
 ;(function(){
+
+    "use strict";
 
     var catbus = {};
 
@@ -38,51 +40,45 @@
         return (typeof val === 'function') ? val : function() { return val; };
     }
 
-
     catbus.uid = 0;
+    catbus._trees = {}; // trees by name
     catbus._locations = {};
-    catbus._hosts = {};
+    catbus._hosts = {}; // hosts by name
     catbus._primed = false;
     catbus._queueFrame = createQueueFrame();
 
-    catbus.sense = function(topic){
-        return createSensor(topic);
-    };
+    //catbus.sense = function(topic){
+    //    return createSensor(topic);
+    //};
 
     catbus.dropHost = function(name){
 
         var hosts = catbus._hosts;
-        if(!hosts[name]) return false;
         var host = hosts[name];
-        var n = 0;
+
+        if(!host) return false;
+
         for(var id in host._sensorMap){
             var sensor = host._sensorMap[id];
             sensor.drop();
-            n++;
         }
 
         delete hosts[name];
     };
 
-    catbus.at = catbus.location = function(nameOrNames) {
-
-        if(typeof nameOrNames === 'string')
-            return demandLocation(nameOrNames);
-
-        if(nameOrNames.length === 1)
-            return demandLocation(nameOrNames[0]);
-
-        // assume array for now todo use config type checking
-        var multiLoc = demandLocation('auto:' + (catbus.uid + 1));
-        var locs = multiLoc._multi = [];
-        for(var i = 0; i < nameOrNames.length; i++){
-            var name = nameOrNames[i];
-            locs.push(demandLocation(name));
-        }
-        return multiLoc;
-
+    catbus.location = function(nameOrNames){
+        var zone = catbus.tree();
+        return zone.location(nameOrNames);
     };
 
+    catbus.sensor = function(){
+        var zone = catbus.tree();
+        return zone.sensor();
+    };
+
+    catbus.watch = function(nameOrNames) {
+        return catbus.sensor().watch(nameOrNames);
+    };
 
     catbus.matchTopics = function(sensorTopic, locationTopic){
 
@@ -162,6 +158,199 @@
 
     };
 
+    catbus.tree = function(name){
+
+        name = name || 'DEFAULT';
+        var trees = catbus._trees;
+        return trees[name] || (trees[name] = new Zone(name));
+
+    };
+
+    var Zone = function(name) {
+
+        this._id = ++catbus.uid;
+        this._name = name || this._id;
+        this._parent = null;
+        this._children = {}; // by id
+        this._locations = {}; // by name
+        this._valves = null;
+        this._sensors = {}; // by id
+
+    };
+
+    Zone.prototype.createChild = function(name){
+        var child = new Zone(name);
+        child.assignParent(this);
+        return child;
+    };
+
+    Zone.prototype.insertParent = function(newParent){
+
+        var oldParent = this._parent;
+        this.assignParent(newParent);
+        newParent.assignParent(oldParent);
+        return this;
+    };
+
+    Zone.prototype.assignParent = function(newParent){
+
+        var oldParent = this._parent;
+        if(oldParent)
+            delete oldParent._children[this._id];
+        this._parent = newParent;
+        newParent._children[this._id] = this;
+        return this;
+
+    };
+
+
+    Zone.prototype.sensor = function(){
+
+        var sensor = new Sensor();
+        sensor.zone(this);
+        return sensor;
+
+    };
+
+    Zone.prototype.location = function (nameOrNames){
+
+        if(typeof nameOrNames === 'string')
+            return this._demandLocation(nameOrNames);
+
+        if(nameOrNames.length === 1)
+            return this._demandLocation(nameOrNames[0]);
+
+        // if an array of names, return a multi-location
+        var multiLoc = new Location();
+        var locations = multiLoc._multi = [];
+
+        for(var i = 0; i < nameOrNames.length; i++){
+            var name = nameOrNames[i];
+            locations.push(this._demandLocation(name));
+        }
+
+        return multiLoc;
+
+    };
+
+
+    Zone.prototype._demandLocation = function (name){
+        var locations = this._locations;
+        return locations[name] || (locations[name] = new Location(name));
+    };
+
+
+    Zone.prototype.find = function(name, where){
+
+        where = where || 'first'; // options: local, first, parent, outer, last
+
+        if(where === 'local')
+            return this._locations[name];
+        else if(where === 'first')
+            return this._findFirst(name);
+        else if(where === 'outer')
+            return this._findOuter(name);
+        else if(where === 'last')
+            return this._findLast(name);
+        else if(where === 'parent')
+            return this._findFromParent(name);
+        else
+            throw new Error('Invalid option for [where]: ' + where);
+
+    };
+
+
+    Zone.prototype.valves = function(valves){
+
+        var hash = null;
+
+        if(valves && valves.length > 0){
+            hash = {};
+            for(var i = 0; i < valves.length; i++){
+                var name = valves[i];
+                hash[name] = true;
+            }
+        }
+
+        this._valves = hash;
+        return this;
+
+    };
+
+    Zone.prototype._findFirst = function(name, fromParent) {
+
+        var zone = this;
+        var checkValve = fromParent || false;
+
+        do {
+
+            if(checkValve && zone._valves && !zone._valves[name])
+                return null; // not white-listed by a valve
+
+            checkValve = true; // not checked at the local level
+
+            var result = zone._locations[name];
+            if (result)
+                return result;
+
+        } while (zone = zone._parent);
+
+        return null;
+    };
+
+    Zone.prototype._findFromParent = function(name) {
+
+        var parent = this._parent;
+        if(!parent) return null;
+        return parent._findFirst(name, true);
+
+    };
+
+    Zone.prototype._findOuter = function(name) {
+
+        var zone = this;
+        var found = false;
+        var checkValve = false;
+
+        do {
+
+            if(checkValve && zone._valves && !zone._valves[name])
+                return null; // not white-listed by a valve on the cog
+
+            checkValve = true; // not checked at the local level (valves are on the bottom of cogs)
+
+            var result = zone._locations[name];
+            if (result) {
+                if(found)
+                    return result;
+                found = true;
+            }
+        } while (zone = zone._parent);
+
+        return null;
+
+    };
+
+    Zone.prototype._findLast = function(name) {
+
+        var zone = this;
+        var result = null;
+        var checkValve = false;
+
+        do {
+
+            if(checkValve && zone._valves && !zone._valves[name])
+                return null; // not white-listed by a valve
+
+            checkValve = true; // not checked at the local level
+
+            result = zone._locations[name] || result;
+
+        } while (zone = zone._parent);
+
+        return result;
+
+    };
 
     var Cluster = function(topic, location) {
         this._location = location;
@@ -192,7 +381,6 @@
     var Host = function(name){
         this._name = name;
         this._sensorMap = {};
-        this._locationMap = {};
     };
 
 
@@ -200,6 +388,7 @@
 
         topic = topic || 'update'; // change default to *?
 
+        this._zone = null;
         this._multi = null; // list of sensors to process through sensor api
         this._callback = null;
         this._context = null;
@@ -255,6 +444,7 @@
         retain: {name: 'retain', type: 'boolean', prop: '_retain', default_set: true},
         need: {name: 'need', transform: '_toStringArray', valid: '_isStringArray', prop: '_needs'}, // todo, also accept [locs] to tags
         host:  {name: 'host', transform: '_toString', type: 'string', setter: '_setHost', prop: '_host'},
+        zone:  {name: 'zone', valid: '_isZone', setter: '_setZone', prop: '_zone'},
         defer: {name: 'defer', type: 'boolean' , prop: '_defer', default_set: true},
         batch: {name: 'batch', type: 'boolean' , prop: '_batch', default_set: true, setter: '_setBatch'},
         change: {name: 'change', type: 'boolean' , prop: '_change', default_set: true},
@@ -353,6 +543,10 @@
 
     Sensor.prototype._isLocation = function(location){
         return location instanceof Location;
+    };
+
+    Sensor.prototype._isZone = function(zone){
+        return zone instanceof Zone;
     };
 
     Sensor.prototype._toStringArray = function(stringOrStringArray){
@@ -522,18 +716,29 @@
 
     };
 
+    Sensor.prototype._setZone = function(newZone){
+
+            var oldZone = this._zone;
+            if(oldZone)
+                delete oldZone._sensors[this._id];
+            this._zone = newZone;
+            newZone._sensors[this._id] = this;
+            return this;
+    };
 
     Sensor.prototype._setHost = function(name) {
 
         var hosts = catbus._hosts;
-        if(arguments.length==0) return this._host;
+
         if(this._host && this._host._name != name){
             delete this._host._sensorMap[this._id];
             if(Object.keys(this._host._sensorMap).length == 0){
                 delete hosts[this._host._name];
             }
         }
-        if(!name) return this; // sensor removed from host when name is falsey
+
+        if(!name) return this; // sensor removed from host when name is 'falsey'
+
         this._host = hosts[name] || (hosts[name] = new Host(name));
         this._host._sensorMap[this._id] = this;
         return this;
@@ -599,8 +804,6 @@
 
         if(arguments.length === 0) throw new Error();
 
-        //if(arguments.length === 0) return this._cluster._location;
-
         var locations = catbus._locations;
         if(typeof location === 'string'){
             var newLocation = locations[location];
@@ -639,10 +842,7 @@
             s.pipe(mergeLoc);
         }
 
-
-        //this._multi = null;
-
-        return mergeLoc.sense().host(mergeHost).as(mergeContext);
+        return mergeLoc.sensor().host(mergeHost).as(mergeContext);
 
     };
 
@@ -834,7 +1034,7 @@
         this._multi = null; // list of locations to put through api
         this._id = ++catbus.uid;
         this._tag = name; // default
-        this._name = name;
+        this._name = name || ('auto:' + this._id);
         this._clusters = {}; // by topic
         this._appear = undefined;
         this._service = null;
@@ -883,7 +1083,7 @@
     };
 
 
-    Location.prototype.on = Location.prototype.topic = Location.prototype.sense =  function(topic){
+    Location.prototype.on = Location.prototype.sensor = function(topic){
 
         var topic_list;
         var loc_list;
@@ -975,9 +1175,9 @@
 
     catbus.$ = {};
 
-    catbus.$.sense = catbus.$.detect = function(eventName) {
+    catbus.$.detect = function(eventName) {
 
-        var sensor = catbus.sense();
+        var sensor = catbus.sensor();
 
         this.on(eventName, function(event){
             sensor.tell(event, 'update', eventName);
@@ -990,7 +1190,7 @@
     var selector = typeof jQuery !== 'undefined' && jQuery !== null ? jQuery : null;
     selector = selector || (typeof Zepto !== 'undefined' && Zepto !== null ? Zepto : null);
     if(selector)
-        selector.fn.sense = selector.fn.detect = catbus.$.detect;
+        selector.fn.detect = catbus.$.detect;
 
     if ((typeof define !== "undefined" && define !== null) && (define.amd != null)) {
         define([], function() {
