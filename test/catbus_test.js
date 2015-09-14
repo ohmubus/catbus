@@ -63,6 +63,111 @@ describe('Catbus', function(){
         lands = bus.location(['tree','boat','desert']);
     });
 
+    describe('Zones', function(){
+
+
+        it('makes and finds trees', function(){
+
+            var fruitTree = bus.demandTree('fruit');
+            var catsTree = bus.demandTree('cats');
+
+            assert.equal(fruitTree === bus.demandTree('fruit'), true);
+            assert.equal(catsTree === bus.demandTree('cats'), true);
+
+        });
+
+        it('makes child zones', function(){
+
+            var fruitTree = bus.demandTree('fruit');
+
+            var sour = fruitTree.demandChild('sour');
+            var sweet = fruitTree.demandChild('sweet');
+            var tart = fruitTree.demandChild('tart');
+
+            assert.equal(sour === fruitTree.demandChild('sour'), true);
+            assert.equal(fruitTree.snapshot().children.length, 3);
+
+        });
+
+        it('makes child of child zones', function(){
+
+            var fruitTree = bus.demandTree('fruit');
+
+            var sour = fruitTree.demandChild('sour');
+            var sweet = fruitTree.demandChild('sweet');
+            var tart = fruitTree.demandChild('tart');
+
+            sour.demandChild('lemon');
+            sour.demandChild('lime');
+
+            sweet.demandChild('orange');
+            sweet.demandChild('peach');
+            sweet.demandChild('apple');
+            sweet.demandChild('mango');
+
+            tart.demandChild('apple');
+
+
+            assert.equal(fruitTree.snapshot().children.length, 3);
+            assert.equal(sweet.snapshot().children.length, 4);
+
+        });
+
+
+        it('finds data up the tree', function(){
+
+            var fruitTree = bus.demandTree('fruit');
+            fruitTree.demandLocation('owner').write('Scott');
+
+            var sour = fruitTree.demandChild('sour');
+            var sweet = fruitTree.demandChild('sweet');
+            var tart = fruitTree.demandChild('tart');
+
+            var mango = sweet.demandChild('mango');
+            mango.demandLocation('owner').write('Landon');
+
+            var owner = sour.findData('owner').read(); // owner at fruit level
+            assert.equal(owner, 'Scott');
+
+            sweet.demandLocation('owner').write('Lars');
+            sour.demandLocation('owner').write('Nick');
+
+            owner = sweet.findData('owner').read();
+            assert.equal(owner, 'Lars');
+
+            owner = sour.findData('owner').read();
+            assert.equal(owner, 'Nick');
+
+            owner = sour.findData('owner', 'last').read();
+            assert.equal(owner, 'Scott');
+
+            owner = tart.findData('owner').read();
+            assert.equal(owner, 'Scott');
+
+            owner = mango.findData('owner').read();
+            assert.equal(owner, 'Landon');
+
+            owner = mango.findData('owner', 'first').read();
+            assert.equal(owner, 'Landon');
+
+            owner = mango.findData('owner', 'local').read();
+            assert.equal(owner, 'Landon');
+
+            owner = mango.findData('owner', 'parent').read();
+            assert.equal(owner, 'Lars');
+
+            owner = mango.findData('owner', 'outer').read();
+            assert.equal(owner, 'Lars');
+
+            owner = mango.findData('owner', 'last').read();
+            assert.equal(owner, 'Scott');
+
+
+        });
+
+
+    });
+
     describe('Locations', function(){
 
 

@@ -31,6 +31,32 @@
         return (typeof val === 'function') ? val : function() { return val; };
     }
 
+    function toNameArray(arg){
+
+        if(typeof arg === 'string'){
+            return stringToTrimmedArray(arg);
+        }
+
+        return arg;
+
+    }
+
+    function stringToTrimmedArray(str){
+
+        var arr = str.split(',');
+
+        for(var i = arr.length - 1; i >= 0; i--){
+            var chunk = arr[i];
+            chunk = chunk.trim();
+            if(!chunk)
+                arr.splice(i, 1);
+        }
+
+        return arr;
+    }
+
+
+
     catbus.uid = 0;
     catbus._trees = {}; // trees by name
     catbus._locations = {};
@@ -56,7 +82,7 @@
 
     catbus.location = function(nameOrNames){
         var zone = catbus.tree();
-        return zone.location(nameOrNames);
+        return zone.demandLocation(nameOrNames);
     };
 
     catbus.sensor = function(){
@@ -148,7 +174,7 @@
 
     };
 
-    catbus.tree = function(name){
+    catbus.tree = catbus.demandTree = function(name){
 
         name = name || 'DEFAULT';
         var trees = catbus._trees;
@@ -161,14 +187,33 @@
         this._id = ++catbus.uid;
         this._name = name || this._id;
         this._parent = null;
-        this._children = {}; // by id
+        this._children = {}; // by name
         this._locations = {}; // by name
         this._valves = null;
         this._sensors = {}; // by id
 
     };
 
-    Zone.prototype.createChild = function(name){
+    Zone.prototype.snapshot = function(){
+
+        var result = {id: this._id, name: this._name, children: [], data: [], sensors: [], valves: [], parent: this._parent && this._parent._name};
+        var p;
+
+        for(p in this._children) { result.children.push(p); };
+        for(p in this._locations) { result.data.push(p); };
+        for(p in this._sensors) { result.data.push(p); };
+
+        if(this._valves)
+            for(p in this._valves) { result.children.push(p); };
+
+        return result;
+    };
+
+    Zone.prototype.demandChild = function(name){
+        return this._children[name] || this._createChild(name);
+    };
+
+    Zone.prototype._createChild = function(name){
         var child = new Zone(name);
         child.assignParent(this);
         return child;
@@ -184,17 +229,18 @@
 
     Zone.prototype.assignParent = function(newParent){
 
+// todo test name collision, initial block colons from user names
         var oldParent = this._parent;
         if(oldParent)
-            delete oldParent._children[this._id];
+            delete oldParent._children[this._name];
         this._parent = newParent;
-        newParent._children[this._id] = this;
+        newParent._children[this._name] = this;
         return this;
 
     };
 
 
-    Zone.prototype.sensor = function(){
+    Zone.prototype.sensor = Zone.prototype.createSensor = function(){
 
         var sensor = new Sensor();
         sensor.zone(this);
@@ -202,20 +248,19 @@
 
     };
 
-    Zone.prototype.location = function (nameOrNames){
+    Zone.prototype.demandLocation = function (nameOrNames){
 
-        if(typeof nameOrNames === 'string')
-            return this._demandLocation(nameOrNames);
+        var names = toNameArray(nameOrNames);
 
-        if(nameOrNames.length === 1)
-            return this._demandLocation(nameOrNames[0]);
+        if(names.length === 1)
+            return this._demandLocation(names[0]);
 
         // if an array of names, return a multi-location
         var multiLoc = this._demandLocation();
         var locations = multiLoc._multi = [];
 
-        for(var i = 0; i < nameOrNames.length; i++){
-            var name = nameOrNames[i];
+        for(var i = 0; i < names.length; i++){
+            var name = names[i];
             locations.push(this._demandLocation(name));
         }
 
@@ -224,13 +269,52 @@
     };
 
 
-    Zone.prototype._demandLocation = function (name){
+    Zone.prototype._demandLocation = function(name){
+
         var locations = this._locations;
-        return (name && locations[name]) || (locations[name] = new Location(name, this));
+        var location = locations[name];
+
+        if(!location) {
+
+            location = new Location(name);
+            locations[location._name] = location;
+            location._zone = this;
+
+        }
+
+        return location;
+
     };
 
+    Zone.prototype.findData = function(nameOrArray, where, optional){
 
-    Zone.prototype.find = function(name, where){
+        var arr = toNameArray(nameOrArray);
+        var data;
+        var data_list = [];
+        var result = null;
+
+        for(var i = 0; i < arr.length; i++){
+            var name = arr[i];
+            if(typeof name === 'object')
+                data = name;
+            else
+                data = this._findData(name, where, optional);
+            if(data)
+                data_list.push(data);
+        }
+
+        if(data_list.length > 1){
+            result = this._demandLocation();
+            result._multi = data_list;
+        } else if (data_list.length === 1) {
+            result = data_list[0];
+        }
+
+        return result;
+
+    };
+
+    Zone.prototype._findData = function(name, where, optional){
 
         where = where || 'first'; // options: local, first, parent, outer, last
 
@@ -443,7 +527,7 @@
         sleep: {name: 'sleep', no_arg: true , prop: '_active', default_set: false},
         wake: {name: 'wake', no_arg: true , prop: '_active', default_set: true},
         on: {name: 'on', alias: ['topic','sense'], type: 'string' , setter: '_setTopic', getter: '_getTopic'},
-        watch:  {name: 'watch', alias: ['location','at'], transform: '_toLocation', valid: '_isLocation', setter: '_setLocation', getter: '_getLocation'},
+        //watch:  {name: 'watch', alias: ['location','at'], transform: '_toLocation', valid: '_isLocation', setter: '_watch', getter: '_getLocation'},
         exit:  {name: 'exit', alias: ['transform'], type: 'function', functor: true, prop: '_transformMethod'},
         enter: {name: 'enter', alias: ['adapt'], type: 'function', functor: true, prop:'_appear'},
         run: {name: 'run', type: 'function' , prop: '_callback'},
@@ -457,11 +541,11 @@
 
     // build chaining setters from config
 
-    var c;
+    var config_name;
     var config;
 
-    for(c in sensor_config){
-        config = sensor_config[c];
+    for(config_name in sensor_config){
+        config = sensor_config[config_name];
         var alias = config.alias;
         if(alias){
             for(var i = 0; i < alias.length; i++){
@@ -471,21 +555,21 @@
         }
     }
 
-    for(c in sensor_config){
+    for(config_name in sensor_config){
 
-        config = sensor_config[c];
+        config = sensor_config[config_name];
 
         if(config.no_write)
             continue;
 
-        (function(name){
+        (function(name, props){
 
             Sensor.prototype[name] = function(value){
 
                 if(this._multi){
                     if(arguments.length === 0)
-                        if(config.hasOwnProperty('default_set'))
-                            return this._setMultiAttr(name, config.default_set);
+                        if(props.hasOwnProperty('default_set'))
+                            return this._setMultiAttr(name, props.default_set);
                         else
                             return this._setMultiAttr(name);
                     else
@@ -493,15 +577,15 @@
                 }
 
                 if(arguments.length === 0)
-                    if(config.hasOwnProperty('default_set'))
-                        return this._setAttr(name, config.default_set);
+                    if(props.hasOwnProperty('default_set'))
+                        return this._setAttr(name, props.default_set);
                     else
                         return this._setAttr(name);
                 else
                     return this._setAttr(name, value);
             };
 
-        })(c);
+        })(config_name, config);
 
     }
 
@@ -531,6 +615,41 @@
     Sensor.prototype._isLocation = function(location){
         return location instanceof Location;
     };
+
+    Sensor.prototype.toArray = function(){
+        if(this._multi)
+            return this._multi;
+        else
+            return [this];
+    };
+
+    Sensor.prototype.watch = function(namesOrLocations, where, optional){
+
+        var locations = this._zone.findData(namesOrLocations, where, optional);
+        var sensor;
+        var loc_list = locations.toArray();
+        var loc;
+        var new_sensors = [];
+
+        for(var i = 0; i < loc_list.length; i++){
+            loc = loc_list[i];
+            sensor = loc.createSensor();
+            new_sensors.push(sensor);
+        }
+
+        if(this._cluster && this._cluster._location)
+            new_sensors.push(this);
+
+        if(new_sensors.length === 0)
+            return this;
+        else if(new_sensors.length === 1)
+            return new_sensors[0];
+
+        this._multi = new_sensors;
+        return this;
+
+    };
+
 
     Sensor.prototype._isZone = function(zone){
         return zone instanceof Zone;
@@ -709,7 +828,10 @@
             if(oldZone)
                 delete oldZone._sensors[this._id];
             this._zone = newZone;
-            newZone._sensors[this._id] = this;
+
+            if(newZone)
+                newZone._sensors[this._id] = this;
+
             return this;
     };
 
@@ -744,6 +866,7 @@
         var newCluster = this._cluster = location._demandCluster(topic);
         newCluster._add(this);
         return this;
+
     };
 
 
@@ -790,17 +913,7 @@
 
     Sensor.prototype._setLocation = function(location){
 
-        if(arguments.length === 0) throw new Error();
-
-        var locations = catbus._locations;
-        if(typeof location === 'string'){
-            var newLocation = locations[location];
-            if(!newLocation)
-                throw new Error("Sensor in unresolved location: " + location);
-            location = newLocation;
-        }
-
-        if(location === this._cluster && this._cluster._location) return this;
+        if(location === (this._cluster && this._cluster._location)) return this; // matches current location
 
         var origCluster  = this._cluster;
         var origTopic = origCluster && origCluster._topic || 'update';
@@ -810,12 +923,15 @@
 
         var newCluster = this._cluster = location._demandCluster(origTopic);
         newCluster._add(this);
+
         return this;
+
     };
 
-    Sensor.prototype.merge = Sensor.prototype.next =function() {
 
-        //console.log('merging:', this);
+    // if names -> resolve to multi loc, if locations array -> to multi loc, if location
+    Sensor.prototype.watch2 = function(namesOrLocations, where, optional) {
+
         var sensors = this._multi || [this];
 
         var mergeLoc = this._mergeLoc = this._zone._demandLocation(); // demandLocation('auto:' + (catbus.uid + 1));
@@ -831,9 +947,27 @@
         }
 
         var mergedSensor = mergeLoc.sensor().host(mergeHost).as(mergeContext);
+        return mergedSensor;
 
-        //console.log('merge done:', mergedSensor);
+    };
 
+    Sensor.prototype.merge = Sensor.prototype.next =function() {
+
+        var sensors = this._multi || [this];
+
+        var mergeLoc = this._mergeLoc = this._zone._demandLocation(); // demandLocation('auto:' + (catbus.uid + 1));
+
+        var mergeHost = this._host && this._host._name;
+        var mergeContext = this._context;
+
+        for(var i = 0; i < sensors.length; i++){
+            var s = sensors[i];
+            mergeHost = mergeHost || (s._host && s._host._name);
+            mergeContext = mergeContext || s._context;
+            s.pipe(mergeLoc);
+        }
+
+        var mergedSensor = mergeLoc.sensor().host(mergeHost).as(mergeContext);
         return mergedSensor;
 
     };
@@ -877,8 +1011,6 @@
 
         if(this._filter && !this._filter.call(this._context || this, msg, topic, tag))
             return this; // message filtered out
-
-        //if(!this._batch) // todo take this restriction away when not framework issue
 
         if (this._batch || this._group) { // create lists of messages grouped by tag and list in order
             var list = this._batchedByTag[tag] = this._batchedByTag[tag] || [];
@@ -988,21 +1120,11 @@
 
         var postcard = this._postcard;
 
-        //if(!this._batch && !this._group && this._change && this._last && this._last.msg === postcard.msg) {
-        //        return this;
-        //}
 
         this._last = postcard;
 
         if(this._pipe){
-            //if(this._group){
-            //    for(var tag in postcard.msg){
-            //        var tag_msg = postcard.msg[tag];
-            //        this._pipe.tell(tag_msg, postcard.topic, tag);
-            //    }
-            //} else {
             this._pipe.tell(postcard.msg, postcard.topic, this._getTag(), this);
-            //}
         } else {
             if(typeof (this._callback) !== 'function') return this;
             this._callback.call(this._context || this, postcard.msg, postcard.topic, this._getTag(), this);
@@ -1018,7 +1140,7 @@
     };
 
 
-    var Location = function(name, zone) {
+    var Location = function(name) {
 
         this._multi = null; // list of locations to put through api
         this._id = ++catbus.uid;
@@ -1026,7 +1148,7 @@
         this._tag = name; // default
         this._clusters = {}; // by topic
         this._appear = undefined;
-        this._zone = zone;
+        this._zone = null;
         this._service = null;
         this._demandCluster('*'); // wildcard storage location for all topics
         this._demandCluster('update'); // default for data storage
@@ -1073,34 +1195,47 @@
     };
 
 
-    Location.prototype.on = Location.prototype.sensor = function(topic){
+    Location.prototype.on = Location.prototype.sensor = Location.prototype.createSensor = function(topicOrTopics){
 
         var topic_list;
         var loc_list;
-        var zone = this._zone;
+        var sensor_list;
+        var location;
+        var topic;
+        var sensor;
 
-        topic = topic || 'update';
-        topic_list = (typeof topic === 'string') ? [topic] : topic; // assume array todo verify is array
-
+        topicOrTopics = topicOrTopics || 'update';
+        topic_list = toNameArray(topicOrTopics);
         loc_list = this._multi || [this];
 
-        if(loc_list.length === 1 && topic_list.length === 1)
-            return zone.sensor().watch(this).on(topic_list[0]);
+        if(loc_list.length === 1 && topic_list.length === 1){
+            location = loc_list[0];
+            topic = topic_list[0];
+            sensor = location._createSensor().on(topic);
+            return sensor;
+        }
 
-        var multiSensor = zone.sensor().watch(this);//.on('update');// createSensor('update', this);
+        sensor = this._createSensor();
 
-        var sensors = multiSensor._multi = [];
+        sensor_list = sensor._multi = [];
 
         for(var i = 0; i < loc_list.length; i++){
-            var loc = loc_list[i];
+            location = loc_list[i];
             for(var j = 0; j < topic_list.length; j++){
-                var topic_name = topic_list[j];
-                sensors.push( zone.sensor().watch(loc).on(topic_name) );  //createSensor(topic_name, loc));
+                topic = topic_list[j];
+                sensor_list.push(location._createSensor().on(topic));
             }
         }
 
-        return multiSensor;
+        return sensor;
 
+    };
+
+    Location.prototype._createSensor = function(){
+        var sensor = new Sensor();
+        sensor.zone(this._zone);
+        sensor._setLocation(this);
+        return sensor;
     };
 
 
