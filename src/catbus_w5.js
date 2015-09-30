@@ -61,23 +61,23 @@
 
         delimiter = delimiter || ',';
         var arr = str.split(delimiter);
-        var result = [];
-        for(var i = 0; i < arr.length; i++){
+
+        for(var i = arr.length - 1; i >= 0; i--){
             var chunk = arr[i];
             var trimmed_chunk = chunk.trim();
-            if(trimmed_chunk)
-                result.push(trimmed_chunk);
+            if(!trimmed_chunk)
+                arr.splice(i, 1);
+            else if(trimmed_chunk.length !== chunk.length)
+                arr.splice(i, 1, trimmed_chunk);
         }
 
-        return result;
+        return arr;
     }
 
 
     catbus.uid = 0;
     catbus._trees = {}; // trees by name
     catbus._directions = null;
-    catbus._deepLinkers = {};
-    catbus._currentDeepLinker = 'raw';
     catbus._locations = {};
     catbus._hosts = {}; // hosts by name
     catbus._primed = false;
@@ -202,66 +202,13 @@
 
     };
 
-    catbus.defineDeepLinker = function(name, toLink, toDirections){
-
-        catbus._deepLinkers[name] = {toLink: toLink, toDirections: toDirections};
-
-    };
-
-    catbus.defineDeepLinker('raw',
-        function toLink(directions){
-            return encodeURIComponent(JSON.stringify(directions));
-        },
-        function toDirections(link){
-            return JSON.parse(decodeURIComponent(link));
-        }
-    );
-
-    catbus.setDeepLinker = function(name){
-        catbus._currentDeepLinker = name || 'raw';
-
-    };
-
     catbus._createTree = function(name){
-
         var tree = new Zone(name);
-        var directions = tree.demandData('__DIRECTIONS__');
-        var link = tree.demandData('__DEEP_LINK__');
-        directions.createSensor().on('update').batch().run(function(msg){
-            //console.log('directions:',(msg));
-            var deepLinkerName = catbus._currentDeepLinker;
-            var link = (catbus._deepLinkers[deepLinkerName]).toLink(msg);
-            //var dir = (catbus._deepLinkers[deepLinkerName]).toDirections(link);
-            //console.log('raw link', link);
-            //console.log('trans dir', dir);
-
-            window.history.replaceState(null,null,window.location.origin + window.location.pathname + '?' + deepLinkerName + '=' + link);
-        });
-
+        tree.demandData('__DIRECTIONS__');
         return tree;
-
     };
 
-    catbus.lookForDirections = function(searchStr){
-        if(searchStr.indexOf('?lzs=') === 0) {
-            var linkData = searchStr.substr(5);
-            return {linkType: 'lzs', linkData: linkData};
-        }
-         return null;
-
-    };
-
-    catbus.resolveDirections = function(searchStr){
-
-        var encoding = catbus.lookForDirections(searchStr);
-        if(!encoding) return;
-
-        var directions = (catbus._deepLinkers[encoding.linkType]).toDirections(encoding.linkData);
-        return directions;
-
-    };
-
-    var Zone = function(name, isRoute) {
+    var Zone = function(name) {
 
         this._id = ++catbus.uid;
         this._tree = null;
@@ -271,14 +218,50 @@
         this._locations = {}; // by name
         this._valves = null;
         this._sensors = {}; // by id
-        this._routeKey = '';
-        this._isRoute = isRoute || false;
+        this._routeKey = null;
+        this._isRoute = false;
         this._dropped = false;
 
     };
 
+    Zone.prototype._findRouteKeyActive = function(){
 
+        var z = this;
 
+        do{
+            if(z._isRoute)
+                return z._routeKey;
+        } while(z = z._parent);
+
+        return [];
+
+    };
+
+    Zone.prototype._findRouteKeyContext = function(){
+
+        var z = this;
+
+        while(z = z._parent){
+            if(z._isRoute)
+                return z._routeKey;
+        }
+
+        return [];
+
+    };
+
+    Zone.prototype._determineRouteKey = function(){
+
+        if(!this._isRoute)
+            return null;
+
+        var route = [].concat(this._findRouteKeyContext());
+        route.push(this._name);
+
+        this._routeKey = route;
+        return this._routeKey;
+
+    };
 
     Zone.prototype.drop = function(){
 
@@ -358,24 +341,13 @@
         if(oldParent)
             delete oldParent._children[this._name];
         this._parent = newParent;
+        this._determineRouteKey();
 
         if(newParent) {
             this._tree = newParent._tree || newParent;
             newParent._children[this._name] = this;
         }
-        this._determineRouteKey();
-
         return this;
-
-    };
-
-    Zone.prototype._determineRouteKey = function(){
-        var baseKey = this._parent && this._parent._routeKey || '';
-        if(this._isRoute && this._name){
-            this._routeKey = baseKey ? baseKey + '.' + this._name : this._name;
-        } else {
-            this._routeKey = baseKey;
-        }
 
     };
 
@@ -671,7 +643,6 @@
         this._active = true;
         this._id = ++catbus.uid;
         this._appear = undefined;
-        this._extract = null;
         this._lastAppearingMsg = undefined;
         this._dropped = false;
         this._locked = false;
@@ -709,7 +680,7 @@
         defer: {name: 'defer', type: 'boolean' , prop: '_defer', default_set: true},
         batch: {name: 'batch', type: 'boolean' , prop: '_batch', default_set: true, setter: '_setBatch'},
         change: {name: 'change', type: 'boolean' , prop: '_change', default_set: true},
-        group: {name: 'group', type: 'function', prop: '_group', functor: true, default_set: function(msg, topic, name){ return name;}},
+        group: {name: 'group', type: 'boolean' , prop: '_group', default_set: true, setter: '_setGroup'},
         pipe: {name: 'pipe', valid: '_isLocation', prop: '_pipe'},
         emit: {name: 'emit', prop: '_emit', functor: true},
         name: {name: 'name', type: 'string' , prop: '_name'},
@@ -1065,8 +1036,8 @@
     Sensor.prototype._setGroup = function(group){
 
         this._group = group;
-        //if(group)
-        //    this.batch(true);
+        if(group)
+            this.batch(true);
         return this;
     };
 
@@ -1197,9 +1168,6 @@
             return this;
 
         msg = (typeof this._appear === 'function') ? this._appear.call(this._context || this, msg, topic, tag) : msg;
-
-        msg = (this._extract) ? msg[this._extract] : msg;
-
         if(this._change && this._lastAppearingMsg === msg)
             return this;
 
@@ -1212,8 +1180,7 @@
             return this; // message filtered out
 
         if (this._batch || this._group) { // create lists of messages grouped by tag and list in order
-            var groupingTag = (this._group && this._group(msg, topic, tag)) || tag;
-            var list = this._batchedByTag[groupingTag] = this._batchedByTag[groupingTag] || [];
+            var list = this._batchedByTag[tag] = this._batchedByTag[tag] || [];
             list.push(msg);
             this._batchedAsList.push(msg);
         } else {
@@ -1352,7 +1319,7 @@
         this._isLink = false; // link data will be stored in the route of the tree
         this._zone = null;
         this._service = null;
-        this._routeKey = '';
+        this._routeKey = null;
         this._demandCluster('*'); // wildcard storage location for all topics
         this._demandCluster('update'); // default for data storage
         this._dropped = false;
@@ -1362,37 +1329,18 @@
     Location.prototype.route = function(){
 
         this._isRoute = true;
-        this._determineRouteKey();
+        this._routeKey = this._zone._determineRouteKey();
 
+        return this;
     };
 
     Location.prototype._determineRouteKey = function(){
 
-        if(!this._isRoute) {
-            this._routeKey = this._zone._routeKey;
-        } else {
-            var zoneRouteKey = this._zone._routeKey ? (this._zone._routeKey + '.') : '';
-            this._routeKey = zoneRouteKey + this._name; // gets to hash of values by topic
-        }
-    };
-
-    Location.prototype.initialize = function(msg, topic){
-
-        if(!this._isRoute) {
-            this.write(msg, topic);
-            return this;
-        }
-
-        topic = topic || 'update';
-
-        var directionsByTopic = this._getDirections();
-        if(!directionsByTopic.hasOwnProperty(topic))
-            directionsByTopic[topic] = msg;
-
-        this._applyDirections(directionsByTopic);
+        var route = [].concat(this._zone._findRouteKeyActive());
+        route.push(this._name);
+        return route;
 
     };
-
 
     Location.prototype.service = function(service){
         if(arguments.length === 0)
@@ -1522,37 +1470,6 @@
         return (packet) ? packet.msg : undefined;
     };
 
-    Location.prototype._getDirections = function() {
-
-        this._determineRouteKey();
-        var directionsData = this._zone._tree.demandData('__DIRECTIONS__');
-        var directions = directionsData.read() || {};
-        var directionsByTopic = directions[this._routeKey];
-        return directionsByTopic || {};
-
-    };
-
-    Location.prototype._applyDirections = function(specificDirections){
-
-        var directionsByTopic = specificDirections || this._getDirections();
-
-        if(directionsByTopic){
-
-            var writes = [];
-            for(var topic in directionsByTopic){
-                if(topic !== '*') {
-                    writes.push({msg: directionsByTopic[topic], topic: topic});
-                }
-            }
-
-            for(var i = 0; i < writes.length; i++){
-                this.write(writes[i].msg, writes[i].topic);
-            }
-
-        }
-
-    };
-
     Location.prototype.tell = Location.prototype.write  = function(msg, topic, tag){
 
         topic = topic || 'update';
@@ -1567,8 +1484,13 @@
 
             var directionsData = this._zone._tree.demandData('__DIRECTIONS__');
             var directions = directionsData.read() || {};
-            var directionsByTopic = directions[this._routeKey] = directions[this._routeKey] || {};
-            directionsByTopic[topic] = msg;
+            var context = directions;
+            for(var i = 0; i < this._routeKey.length; i++){
+                var prop = this._routeKey[i];
+                context = directions[prop] = directions[prop] || {};
+            }
+
+            context[topic] = msg;
             directionsData.write(directions);
 
         }

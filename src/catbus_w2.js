@@ -31,10 +31,10 @@
         return (typeof val === 'function') ? val : function() { return val; };
     }
 
-    function toNameArray(arg, delimiter){
+    function toNameArray(arg){
 
         if(typeof arg === 'string'){
-            return stringToTrimmedArray(arg, delimiter);
+            return stringToTrimmedArray(arg);
         }
 
         return arg;
@@ -61,23 +61,23 @@
 
         delimiter = delimiter || ',';
         var arr = str.split(delimiter);
-        var result = [];
-        for(var i = 0; i < arr.length; i++){
+
+        for(var i = arr.length - 1; i >= 0; i--){
             var chunk = arr[i];
             var trimmed_chunk = chunk.trim();
-            if(trimmed_chunk)
-                result.push(trimmed_chunk);
+            if(!trimmed_chunk)
+                arr.splice(i, 1);
+            else if(trimmed_chunk.length !== chunk.length)
+                arr.splice(i, 1, trimmed_chunk);
         }
 
-        return result;
+        return arr;
     }
 
 
     catbus.uid = 0;
     catbus._trees = {}; // trees by name
     catbus._directions = null;
-    catbus._deepLinkers = {};
-    catbus._currentDeepLinker = 'raw';
     catbus._locations = {};
     catbus._hosts = {}; // hosts by name
     catbus._primed = false;
@@ -202,69 +202,15 @@
 
     };
 
-    catbus.defineDeepLinker = function(name, toLink, toDirections){
-
-        catbus._deepLinkers[name] = {toLink: toLink, toDirections: toDirections};
-
-    };
-
-    catbus.defineDeepLinker('raw',
-        function toLink(directions){
-            return encodeURIComponent(JSON.stringify(directions));
-        },
-        function toDirections(link){
-            return JSON.parse(decodeURIComponent(link));
-        }
-    );
-
-    catbus.setDeepLinker = function(name){
-        catbus._currentDeepLinker = name || 'raw';
-
-    };
-
     catbus._createTree = function(name){
-
         var tree = new Zone(name);
-        var directions = tree.demandData('__DIRECTIONS__');
-        var link = tree.demandData('__DEEP_LINK__');
-        directions.createSensor().on('update').batch().run(function(msg){
-            //console.log('directions:',(msg));
-            var deepLinkerName = catbus._currentDeepLinker;
-            var link = (catbus._deepLinkers[deepLinkerName]).toLink(msg);
-            //var dir = (catbus._deepLinkers[deepLinkerName]).toDirections(link);
-            //console.log('raw link', link);
-            //console.log('trans dir', dir);
-
-            window.history.replaceState(null,null,window.location.origin + window.location.pathname + '?' + deepLinkerName + '=' + link);
-        });
-
+        tree.demandData('_DIRECTIONS_');
         return tree;
-
     };
 
-    catbus.lookForDirections = function(searchStr){
-        if(searchStr.indexOf('?lzs=') === 0) {
-            var linkData = searchStr.substr(5);
-            return {linkType: 'lzs', linkData: linkData};
-        }
-         return null;
-
-    };
-
-    catbus.resolveDirections = function(searchStr){
-
-        var encoding = catbus.lookForDirections(searchStr);
-        if(!encoding) return;
-
-        var directions = (catbus._deepLinkers[encoding.linkType]).toDirections(encoding.linkData);
-        return directions;
-
-    };
-
-    var Zone = function(name, isRoute) {
+    var Zone = function(name) {
 
         this._id = ++catbus.uid;
-        this._tree = null;
         this._name = name || this._id;
         this._parent = null;
         this._children = {}; // by name
@@ -272,49 +218,23 @@
         this._valves = null;
         this._sensors = {}; // by id
         this._routeKey = '';
-        this._isRoute = isRoute || false;
-        this._dropped = false;
+        this._isRoute = false;
 
     };
 
+    Zone.prototype._determineRouteKey = function(){
 
-
+    };
 
     Zone.prototype.drop = function(){
 
-        var i, key;
+        var sensor_keys = Object.keys(this._sensorMap);
 
-        if(this._dropped) return;
-
-        var child_keys = Object.keys(this._children);
-        for(i = 0; i < child_keys.length; i++){
-            key = child_keys[i];
-            var child = this._children[key];
-            child.assignParent(null);
-        }
-
-        var sensor_keys = Object.keys(this._sensors);
-        for(i = 0; i < sensor_keys.length; i++){
-            key = sensor_keys[i];
-            var sensor = this._sensors[key];
+        for(var i = 0; i < sensor_keys.length; i++){
+            var key = sensor_keys[i];
+            var sensor = this._sensorMap[key];
             sensor.drop();
         }
-
-        var location_keys = Object.keys(this._locations);
-        for(i = 0; i < location_keys.length; i++){
-            key = location_keys[i];
-            var data = this._locations[key];
-            data.drop(true);
-        }
-
-
-        this._locations = null;
-        this._sensors = null;
-        this._children = null;
-        this._valves = null;
-        this._parent = null;
-        this._dropped = true;
-
 
     };
 
@@ -346,8 +266,8 @@
     Zone.prototype.insertParent = function(newParent){
 
         var oldParent = this._parent;
-        newParent.assignParent(oldParent);
         this.assignParent(newParent);
+        newParent.assignParent(oldParent);
         return this;
     };
 
@@ -359,23 +279,16 @@
             delete oldParent._children[this._name];
         this._parent = newParent;
 
-        if(newParent) {
-            this._tree = newParent._tree || newParent;
-            newParent._children[this._name] = this;
+        var routeKey = newParent._routeKey;
+        if(this._isRoute){
+            if(routeKey)
+                routeKey += '.';
+            routeKey += this._name;
         }
-        this._determineRouteKey();
+        this._routeKey = routeKey;
 
+        newParent._children[this._name] = this;
         return this;
-
-    };
-
-    Zone.prototype._determineRouteKey = function(){
-        var baseKey = this._parent && this._parent._routeKey || '';
-        if(this._isRoute && this._name){
-            this._routeKey = baseKey ? baseKey + '.' + this._name : this._name;
-        } else {
-            this._routeKey = baseKey;
-        }
 
     };
 
@@ -602,24 +515,6 @@
         this._topic = topic;
         this._sensors = [];
         this._lastEnvelope = null;
-        this._dropped = false;
-    };
-
-    Cluster.prototype._drop = function(){
-
-        if(this._dropped) return;
-
-        for(var i = 0; i < this._sensors.length; i++){
-            var sensor = this._sensors[i];
-            sensor.drop();
-        }
-
-        this._location = null;
-        this._lastEnvelope = null;
-        this._sensors = null;
-
-        this._dropped = true;
-
     };
 
     Cluster.prototype._add = function(sensor){
@@ -671,7 +566,6 @@
         this._active = true;
         this._id = ++catbus.uid;
         this._appear = undefined;
-        this._extract = null;
         this._lastAppearingMsg = undefined;
         this._dropped = false;
         this._locked = false;
@@ -709,7 +603,7 @@
         defer: {name: 'defer', type: 'boolean' , prop: '_defer', default_set: true},
         batch: {name: 'batch', type: 'boolean' , prop: '_batch', default_set: true, setter: '_setBatch'},
         change: {name: 'change', type: 'boolean' , prop: '_change', default_set: true},
-        group: {name: 'group', type: 'function', prop: '_group', functor: true, default_set: function(msg, topic, name){ return name;}},
+        group: {name: 'group', type: 'boolean' , prop: '_group', default_set: true, setter: '_setGroup'},
         pipe: {name: 'pipe', valid: '_isLocation', prop: '_pipe'},
         emit: {name: 'emit', prop: '_emit', functor: true},
         name: {name: 'name', type: 'string' , prop: '_name'},
@@ -1065,8 +959,8 @@
     Sensor.prototype._setGroup = function(group){
 
         this._group = group;
-        //if(group)
-        //    this.batch(true);
+        if(group)
+            this.batch(true);
         return this;
     };
 
@@ -1181,9 +1075,7 @@
         }
 
         if(this._mergeLoc)
-            this._mergeLoc.drop();
-
-
+            this._mergeLoc.destroy();
 
         return this;
 
@@ -1197,9 +1089,6 @@
             return this;
 
         msg = (typeof this._appear === 'function') ? this._appear.call(this._context || this, msg, topic, tag) : msg;
-
-        msg = (this._extract) ? msg[this._extract] : msg;
-
         if(this._change && this._lastAppearingMsg === msg)
             return this;
 
@@ -1212,8 +1101,7 @@
             return this; // message filtered out
 
         if (this._batch || this._group) { // create lists of messages grouped by tag and list in order
-            var groupingTag = (this._group && this._group(msg, topic, tag)) || tag;
-            var list = this._batchedByTag[groupingTag] = this._batchedByTag[groupingTag] || [];
+            var list = this._batchedByTag[tag] = this._batchedByTag[tag] || [];
             list.push(msg);
             this._batchedAsList.push(msg);
         } else {
@@ -1342,7 +1230,6 @@
 
     var Location = function(name) {
 
-        this._tree = null; // root zone of tree
         this._multi = null; // list of locations to put through api
         this._id = ++catbus.uid;
         this._name = name || ('auto:' + this._id);
@@ -1352,45 +1239,26 @@
         this._isLink = false; // link data will be stored in the route of the tree
         this._zone = null;
         this._service = null;
-        this._routeKey = '';
+        this._routeKey = null;
         this._demandCluster('*'); // wildcard storage location for all topics
         this._demandCluster('update'); // default for data storage
-        this._dropped = false;
 
     };
 
-    Location.prototype.route = function(){
+    Location.prototype.link = function(isLink){
 
-        this._isRoute = true;
-        this._determineRouteKey();
+        if(this._isLink != isLink){
 
-    };
+            var directions = this.findData('_DIRECTIONS_', 'last'); // ha, coder can't override it! :)
 
-    Location.prototype._determineRouteKey = function(){
+            if(isLink){
+                this._routeKey = this._determineRouteKey();
 
-        if(!this._isRoute) {
-            this._routeKey = this._zone._routeKey;
-        } else {
-            var zoneRouteKey = this._zone._routeKey ? (this._zone._routeKey + '.') : '';
-            this._routeKey = zoneRouteKey + this._name; // gets to hash of values by topic
+            } else {
+
+            }
         }
-    };
-
-    Location.prototype.initialize = function(msg, topic){
-
-        if(!this._isRoute) {
-            this.write(msg, topic);
-            return this;
-        }
-
-        topic = topic || 'update';
-
-        var directionsByTopic = this._getDirections();
-        if(!directionsByTopic.hasOwnProperty(topic))
-            directionsByTopic[topic] = msg;
-
-        this._applyDirections(directionsByTopic);
-
+        return this;
     };
 
 
@@ -1410,16 +1278,7 @@
         }
     };
 
-    Location.prototype.drop = Location.prototype.destroy = function(){
-
-        if(this._dropped) return;
-
-        for(var topic in this._clusters){
-            var cluster = this._clusters[topic];
-            cluster._drop();
-        }
-
-        this._dropped = true;
+    Location.prototype.destroy = function(){
 
     };
 
@@ -1499,12 +1358,12 @@
         return this._findCluster(topic) || (this._clusters[topic] = new Cluster(topic, this));
     };
 
-    //Location.prototype._destroyCluster = function(topic){
-    //    if(topic === 'update') return; // default topic not disposed
-    //    var cluster = this._findCluster(topic);
-    //    if(!cluster || cluster._sensors.length > 0) return null;
-    //    delete this._clusters[topic];
-    //};
+    Location.prototype._destroyCluster = function(topic){
+        if(topic === 'update') return; // default topic not disposed
+        var cluster = this._findCluster(topic);
+        if(!cluster || cluster._sensors.length > 0) return null;
+        delete this._clusters[topic];
+    };
 
     Location.prototype.peek = function(topic){
         if(arguments.length == 0)
@@ -1522,37 +1381,6 @@
         return (packet) ? packet.msg : undefined;
     };
 
-    Location.prototype._getDirections = function() {
-
-        this._determineRouteKey();
-        var directionsData = this._zone._tree.demandData('__DIRECTIONS__');
-        var directions = directionsData.read() || {};
-        var directionsByTopic = directions[this._routeKey];
-        return directionsByTopic || {};
-
-    };
-
-    Location.prototype._applyDirections = function(specificDirections){
-
-        var directionsByTopic = specificDirections || this._getDirections();
-
-        if(directionsByTopic){
-
-            var writes = [];
-            for(var topic in directionsByTopic){
-                if(topic !== '*') {
-                    writes.push({msg: directionsByTopic[topic], topic: topic});
-                }
-            }
-
-            for(var i = 0; i < writes.length; i++){
-                this.write(writes[i].msg, writes[i].topic);
-            }
-
-        }
-
-    };
-
     Location.prototype.tell = Location.prototype.write  = function(msg, topic, tag){
 
         topic = topic || 'update';
@@ -1562,16 +1390,6 @@
         msg = (typeof this._appear === 'function') ? this._appear.call(this._context || this, msg, topic, tag) : msg;
 
         this._demandCluster(topic);
-
-        if(this._isRoute){
-
-            var directionsData = this._zone._tree.demandData('__DIRECTIONS__');
-            var directions = directionsData.read() || {};
-            var directionsByTopic = directions[this._routeKey] = directions[this._routeKey] || {};
-            directionsByTopic[topic] = msg;
-            directionsData.write(directions);
-
-        }
 
         for(var t in this._clusters){
             if(catbus.matchTopics(t,topic)){

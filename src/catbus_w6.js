@@ -61,6 +61,23 @@
 
         delimiter = delimiter || ',';
         var arr = str.split(delimiter);
+
+        for(var i = arr.length - 1; i >= 0; i--){
+            var chunk = arr[i];
+            var trimmed_chunk = chunk.trim();
+            if(!trimmed_chunk)
+                arr.splice(i, 1);
+            else if(trimmed_chunk.length !== chunk.length)
+                arr.splice(i, 1, trimmed_chunk);
+        }
+
+        return arr;
+    }
+
+    function stringToTrimmedArray2(str, delimiter){
+
+        delimiter = delimiter || ',';
+        var arr = str.split(delimiter);
         var result = [];
         for(var i = 0; i < arr.length; i++){
             var chunk = arr[i];
@@ -72,12 +89,43 @@
         return result;
     }
 
+    function stringToTrimmedArray3(str, delimiter){
+
+        delimiter = delimiter || ',';
+        var arr = str.split(delimiter);
+        var result = [];
+        for(var i = 0; i < arr.length; i++){
+            var chunk = arr[i];
+            var trimmed_chunk = chunk.trim();
+            if(trimmed_chunk)
+                result.push(trimmed_chunk);
+        }
+
+        return result;
+
+    }
+
+
+    console.log('two');
+    console.time();
+    for(var ii = 0; ii < 1000000; ii++){
+        stringToTrimmedArray2('meow');
+        stringToTrimmedArray2('meow, bunny, cat, , ,dog ');
+    }
+    console.timeEnd();
+
+    console.log('gooey');
+    console.time();
+    for(var jj = 0; jj < 1000000; jj++){
+        stringToTrimmedArray3('meow');
+        stringToTrimmedArray3('meow, bunny, cat, , ,dog ');
+
+    }
+    console.timeEnd();
 
     catbus.uid = 0;
     catbus._trees = {}; // trees by name
     catbus._directions = null;
-    catbus._deepLinkers = {};
-    catbus._currentDeepLinker = 'raw';
     catbus._locations = {};
     catbus._hosts = {}; // hosts by name
     catbus._primed = false;
@@ -202,63 +250,16 @@
 
     };
 
-    catbus.defineDeepLinker = function(name, toLink, toDirections){
-
-        catbus._deepLinkers[name] = {toLink: toLink, toDirections: toDirections};
-
-    };
-
-    catbus.defineDeepLinker('raw',
-        function toLink(directions){
-            return encodeURIComponent(JSON.stringify(directions));
-        },
-        function toDirections(link){
-            return JSON.parse(decodeURIComponent(link));
-        }
-    );
-
-    catbus.setDeepLinker = function(name){
-        catbus._currentDeepLinker = name || 'raw';
-
-    };
-
     catbus._createTree = function(name){
-
         var tree = new Zone(name);
         var directions = tree.demandData('__DIRECTIONS__');
-        var link = tree.demandData('__DEEP_LINK__');
-        directions.createSensor().on('update').batch().run(function(msg){
-            //console.log('directions:',(msg));
-            var deepLinkerName = catbus._currentDeepLinker;
-            var link = (catbus._deepLinkers[deepLinkerName]).toLink(msg);
-            //var dir = (catbus._deepLinkers[deepLinkerName]).toDirections(link);
-            //console.log('raw link', link);
-            //console.log('trans dir', dir);
+        directions.createSensor().on('*').run(function(msg){
+           // if(msg && msg.filterList.update.length === 0)
+           //     console.log('grr');
 
-            window.history.replaceState(null,null,window.location.origin + window.location.pathname + '?' + deepLinkerName + '=' + link);
+          //  console.log('directions v:',(msg));
         });
-
         return tree;
-
-    };
-
-    catbus.lookForDirections = function(searchStr){
-        if(searchStr.indexOf('?lzs=') === 0) {
-            var linkData = searchStr.substr(5);
-            return {linkType: 'lzs', linkData: linkData};
-        }
-         return null;
-
-    };
-
-    catbus.resolveDirections = function(searchStr){
-
-        var encoding = catbus.lookForDirections(searchStr);
-        if(!encoding) return;
-
-        var directions = (catbus._deepLinkers[encoding.linkType]).toDirections(encoding.linkData);
-        return directions;
-
     };
 
     var Zone = function(name, isRoute) {
@@ -276,7 +277,6 @@
         this._dropped = false;
 
     };
-
 
 
 
@@ -671,7 +671,6 @@
         this._active = true;
         this._id = ++catbus.uid;
         this._appear = undefined;
-        this._extract = null;
         this._lastAppearingMsg = undefined;
         this._dropped = false;
         this._locked = false;
@@ -709,7 +708,7 @@
         defer: {name: 'defer', type: 'boolean' , prop: '_defer', default_set: true},
         batch: {name: 'batch', type: 'boolean' , prop: '_batch', default_set: true, setter: '_setBatch'},
         change: {name: 'change', type: 'boolean' , prop: '_change', default_set: true},
-        group: {name: 'group', type: 'function', prop: '_group', functor: true, default_set: function(msg, topic, name){ return name;}},
+        group: {name: 'group', type: 'boolean' , prop: '_group', default_set: true, setter: '_setGroup'},
         pipe: {name: 'pipe', valid: '_isLocation', prop: '_pipe'},
         emit: {name: 'emit', prop: '_emit', functor: true},
         name: {name: 'name', type: 'string' , prop: '_name'},
@@ -1065,8 +1064,8 @@
     Sensor.prototype._setGroup = function(group){
 
         this._group = group;
-        //if(group)
-        //    this.batch(true);
+        if(group)
+            this.batch(true);
         return this;
     };
 
@@ -1197,9 +1196,6 @@
             return this;
 
         msg = (typeof this._appear === 'function') ? this._appear.call(this._context || this, msg, topic, tag) : msg;
-
-        msg = (this._extract) ? msg[this._extract] : msg;
-
         if(this._change && this._lastAppearingMsg === msg)
             return this;
 
@@ -1212,8 +1208,7 @@
             return this; // message filtered out
 
         if (this._batch || this._group) { // create lists of messages grouped by tag and list in order
-            var groupingTag = (this._group && this._group(msg, topic, tag)) || tag;
-            var list = this._batchedByTag[groupingTag] = this._batchedByTag[groupingTag] || [];
+            var list = this._batchedByTag[tag] = this._batchedByTag[tag] || [];
             list.push(msg);
             this._batchedAsList.push(msg);
         } else {

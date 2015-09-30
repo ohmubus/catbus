@@ -3,7 +3,16 @@
 var util = require('util');
 var assert = require('assert');
 var bus = require('../src/catbus.js');
+var lz = require('lz-string');
 
+
+
+var tt = JSON.stringify({meow:{update:'cow'},
+    'eis.thread':{_:'axd5'}, 'eis.vendor':{_:'bunny'},'eis.machine':{_:'855456'},'eis.site':{_:'nbca'}});
+console.log(tt);
+var cc = lz.compressToEncodedURIComponent(tt);
+console.log(cc);
+console.log(lz.decompressFromEncodedURIComponent(cc));
 
 var _invoked = 0;
 var _msg;
@@ -49,18 +58,18 @@ var _reset = function(){
 
 };
 
-castle = bus.location('castle');
-valley  = bus.location('valley');
-airship  = bus.location('airship');
+castle = bus.demandData('castle');
+valley  = bus.demandData('valley');
+airship  = bus.demandData('airship');
 
 
 
 describe('Catbus', function(){
 
     before(function(){
-        tree = bus.location('tree');
-        boat = bus.location('boat').tag('Ponyo');
-        lands = bus.location(['tree','boat','desert']);
+        tree = bus.demandData('tree');
+        boat = bus.demandData('boat').tag('Ponyo');
+        lands = bus.demandData(['tree','boat','desert']);
     });
 
     describe('Zones', function(){
@@ -162,6 +171,8 @@ describe('Catbus', function(){
             owner = mango.findData('owner', 'last').read();
             assert.equal(owner, 'Scott');
 
+            owner = mango.findData('owner', 'in sweet').read();
+            assert.equal(owner, 'Lars');
 
         });
 
@@ -243,7 +254,7 @@ describe('Catbus', function(){
         });
 
         it('makes sensors with update topic', function(){
-            var fish = boat.sensor();
+            var fish = boat.createSensor();
             fish.run(_logger);
             boat.write('scales');
             assert.equal('update', fish.attr('on'));
@@ -252,12 +263,27 @@ describe('Catbus', function(){
         it('and other topics', function(){
             var fish = boat.on('waves');
             assert.equal('waves', fish.attr('on'));
+            assert.equal('waves', fish.attr('topic'));
         });
 
         it('makes multi-sensors with topics', function(){
+
             var tanks = lands.on(['update','destroy']);
             assert.equal(6, tanks.attr('tag').length);
-            tanks.attr({'keep':'first','on':'meow'});
+
+            var houses = lands.on('enter, exit,fire');
+            assert.equal(9, houses.attr('topic').length);
+
+            tanks.attr({'keep':'first','on':'meow'}).run(_callback);
+            houses.run(_callback);
+
+            bus.demandData('desert').write('wasteland', 'fire');
+            assert.equal(_invoked, 1);
+            bus.demandData('desert').write('wasteland', 'meow');
+            assert.equal(_invoked, 3);
+            bus.demandData('desert').write('wasteland', 'update');
+            assert.equal(_invoked, 3);
+
         });
 
         it('moooo', function(){
@@ -606,6 +632,12 @@ describe('Catbus', function(){
                 castle.write('Yupa', 'update', 'spores');
             }
 
+            function floodCastleTopics(){
+                castle.write('Asbel', 'ring');
+                castle.write('Teto', 'rodent');
+                castle.write('Jihl', 'sword');
+            }
+
             beforeEach(function(){
                 _reset();
                 girl = castle.on().batch().run(_callback);
@@ -689,6 +721,19 @@ describe('Catbus', function(){
 
             });
 
+
+            it('batch into groups of messages by tag, last per tag default -- grouped by topic', function () {
+
+                girl.on('*').group(function(msg, topic, name){ return topic;});
+                floodCastleTopics();
+                floodWorld();
+                bus.flush();
+                assert.equal(1, _invoked);
+                assert.equal('Asbel', _msg.ring);
+                assert.equal('Yupa', _msg.update);
+
+            });
+
             it('batch into groups of messages by tag, first per tag', function () {
 
                 girl.group().keep('first');
@@ -736,6 +781,7 @@ describe('Catbus', function(){
                 bus.flush();
                 floodWorld();
                 bus.flush();
+                //console.log('CHECK',_msg);
                 assert.equal(2, _invoked);
                 assert.equal('Mononoke', _msg.castle);
                 assert.equal('Ponyo', _msg.fish);
@@ -804,6 +850,8 @@ describe('Catbus', function(){
                 castle.write('Teto', 'update', 'wind');
                 castle.write('Jihl');
             }
+
+
 
             function floodAirship(){
                 airship.write('Kushana', 'update','armor');
