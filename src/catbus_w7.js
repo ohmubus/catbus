@@ -1,5 +1,5 @@
 /**
- * catbus.js (v2.0.3)
+ * catbus.js (v2.0.1)
  *
  * Copyright (c) 2015 Scott Southworth, Landon Barnickle & Contributors
  *
@@ -633,7 +633,6 @@
     };
 
     Cluster.prototype._tell = function(msg, topic, tag){
-        if(this._dropped) return;
         this._lastEnvelope = catbus.envelope(msg, topic, tag, this); // message stored enveloped before sending and transforming
         var sensors = [].concat(this._sensors);
         for(var i = 0; i < sensors.length; i++){
@@ -668,7 +667,6 @@
         this._retain = false; // will retain prior tag messages
         this._last = null;
         this._name = null;
-        this._cmd = null;
         this._postcard = null; // wrapped msg about to be sent...
         this._active = true;
         this._id = ++catbus.uid;
@@ -706,7 +704,6 @@
         keep: {name: 'keep', options: ['last', 'first', 'all'], prop: '_keep', default_set: 'last'},
         retain: {name: 'retain', type: 'boolean', prop: '_retain', default_set: true},
         need: {name: 'need', transform: '_toStringArray', valid: '_isStringArray', prop: '_needs'}, // todo, also accept [locs] to tags
-        gather: {name: 'gather', transform: '_toStringArray', valid: '_isStringArray', prop: '_gather'}, // todo, also accept [locs] to tags
         host:  {name: 'host', transform: '_toString', type: 'string', setter: '_setHost', prop: '_host'},
         zone:  {name: 'zone', valid: '_isZone', setter: '_setZone', prop: '_zone'},
         defer: {name: 'defer', type: 'boolean' , prop: '_defer', default_set: true},
@@ -716,7 +713,6 @@
         pipe: {name: 'pipe', valid: '_isLocation', prop: '_pipe'},
         emit: {name: 'emit', prop: '_emit', functor: true},
         name: {name: 'name', type: 'string' , prop: '_name'},
-        cmd: {name: 'cmd', type: 'string', prop: '_cmd'},
         active: {name: 'active', type: 'boolean' , prop: '_active', default_set: true},
         sleep: {name: 'sleep', no_arg: true , prop: '_active', default_set: false},
         wake: {name: 'wake', no_arg: true , prop: '_active', default_set: true},
@@ -1200,12 +1196,9 @@
         if(!this._active || this._dropped)
             return this;
 
-        if(this._gather && this._gather.length > 0)
-            msg = this._applyGathered(msg, topic, tag);
+        msg = (typeof this._appear === 'function') ? this._appear.call(this._context || this, msg, topic, tag) : msg;
 
         msg = (this._extract) ? msg[this._extract] : msg;
-
-        msg = (typeof this._appear === 'function') ? this._appear.call(this._context || this, msg, topic, tag) : msg;
 
         if(this._change && this._lastAppearingMsg === msg)
             return this;
@@ -1239,9 +1232,6 @@
             }
         }
 
-        if(this._cmd && this._cmd !== tag)
-            return; // only fires or primes when the cmd appears after needs are met
-
         this._primed = true;
 
         if (this._batch || this._defer) {
@@ -1252,25 +1242,6 @@
 
     };
 
-    Sensor.prototype._applyGathered = function(msg){
-
-        var consolidated = {};
-        var zone = this._zone;
-
-        //consolidated[this._getTag()] = msg;
-
-        //optional = this._optional; todo add optional to sensor
-
-        for(var i = 0; i < this._gather.length; i++){
-            var name = this._gather[i];
-            var data = zone._findData(name);
-            if(data){
-                consolidated[name] = data.read();
-            }
-        }
-
-        return consolidated;
-    };
 
     Sensor.prototype._consolidateBatchByTag = function(){
 
