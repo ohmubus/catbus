@@ -1,8 +1,8 @@
 {
   "name": "catbus",
-  "version": "2.0.5",
+  "version": "2.0.6",
   "description": "data store (cat?) and message bus (bus!) in Javascript",
-  "main": "catbus.js",
+  "main": "dist/catbus.js",
   "directories": {
     "test": "test"
   },
