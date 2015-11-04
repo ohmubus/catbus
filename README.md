@@ -1,6 +1,8 @@
 # Catbus
 Data Store (Cat?) and Message Bus (Bus!) in Javascript
 
+# This README is hella out of date, so consider it a WIP.
+
 ## Overview
 
 Designed as a standalone Javascript library, Catbus provides a pub/sub implementation that supports data storage and functional transformations, simplifying the coordination of asynchronous processes and states. Batch, group, filter, pipe, etc. Manage subscriptions en masse in order to avoid memory leaks or unexpected behaviors.
