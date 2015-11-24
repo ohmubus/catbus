@@ -1,5 +1,5 @@
 /**
- * catbus.js (v2.0.5)
+ * catbus.js (v2.0.7)
  *
  * Copyright (c) 2015 Scott Southworth, Landon Barnickle & Contributors
  *
@@ -432,6 +432,9 @@
         var data;
         var data_list = [];
         var result = null;
+
+        if(!arr)
+            return null;
 
         for(var i = 0; i < arr.length; i++){
             var name = arr[i];
@@ -1379,6 +1382,7 @@
         this._tree = null; // root zone of tree
         this._multi = null; // list of locations to put through api
         this._id = ++catbus.uid;
+        this._hasData = false; // true after the first write
         this._name = name || ('auto:' + this._id);
         this._tag = name; // default
         this._clusters = {}; // by topic
