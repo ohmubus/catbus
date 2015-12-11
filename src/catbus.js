@@ -1,5 +1,5 @@
 /**
- * catbus.js (v2.0.7)
+ * catbus.js (v2.0.9)
  *
  * Copyright (c) 2015 Scott Southworth, Landon Barnickle & Contributors
  *
@@ -727,16 +727,15 @@
         sleep: {name: 'sleep', no_arg: true , prop: '_active', default_set: false},
         wake: {name: 'wake', no_arg: true , prop: '_active', default_set: true},
         on: {name: 'on', alias: ['topic','sense'], type: 'string' , setter: '_setTopic', getter: '_getTopic'},
-        //watch:  {name: 'watch', alias: ['location','at'], transform: '_toLocation', valid: '_isLocation', setter: '_watch', getter: '_getLocation'},
         exit:  {name: 'exit', alias: ['transform'], type: 'function', functor: true, prop: '_transformMethod'},
-        enter: {name: 'enter', alias: ['adapt'], type: 'function', functor: true, prop:'_appear'},
+        enter: {name: 'enter', alias: ['consider','adapt'], type: 'function', functor: true, prop:'_appear'},
         extract: {name: 'extract',  transform: '_toString', type: 'string', prop:'_extract'},
         run: {name: 'run', type: 'function' , prop: '_callback'},
         filter: {name: 'filter', type: 'function' , prop: '_filter'},
         as: {name: 'as', type: 'object' , prop: '_context'},
         max:  {name: 'max', transform: '_toInt', type: 'number' , prop: '_max'},
         once:  {name: 'once', no_arg: true, prop: '_max', default_set: 1},
-        tag: {name: 'tag', getter: '_getTag', prop: '_tag', type: 'string'}
+        tag: {name: 'tag', getter: '_getTag', prop: '_tag', functor: true}
 
     };
 
@@ -1130,45 +1129,27 @@
     };
 
 
-    // if names -> resolve to multi loc, if locations array -> to multi loc, if location
-    Sensor.prototype.watch2 = function(namesOrLocations, where, optional) {
+
+
+    Sensor.prototype.merge = Sensor.prototype.next =function(mergeTopic) {
 
         var sensors = this._multi || [this];
 
-        var mergeLoc = this._mergeLoc = this._zone._demandLocation(); // demandLocation('auto:' + (catbus.uid + 1));
+        var mergeLoc = this._mergeLoc = this._zone._demandLocation();
 
         var mergeHost = this._host && this._host._name;
         var mergeContext = this._context;
+
+        mergeTopic = mergeTopic || '*';
 
         for(var i = 0; i < sensors.length; i++){
             var s = sensors[i];
             mergeHost = mergeHost || (s._host && s._host._name);
             mergeContext = mergeContext || s._context;
-            s.pipe(mergeLoc);
+            s.pipe(mergeLoc).emit(s._getTopic());
         }
 
-        var mergedSensor = mergeLoc.sensor().host(mergeHost).as(mergeContext);
-        return mergedSensor;
-
-    };
-
-    Sensor.prototype.merge = Sensor.prototype.next =function() {
-
-        var sensors = this._multi || [this];
-
-        var mergeLoc = this._mergeLoc = this._zone._demandLocation(); // demandLocation('auto:' + (catbus.uid + 1));
-
-        var mergeHost = this._host && this._host._name;
-        var mergeContext = this._context;
-
-        for(var i = 0; i < sensors.length; i++){
-            var s = sensors[i];
-            mergeHost = mergeHost || (s._host && s._host._name);
-            mergeContext = mergeContext || s._context;
-            s.pipe(mergeLoc);
-        }
-
-        var mergedSensor = mergeLoc.sensor().host(mergeHost).as(mergeContext);
+        var mergedSensor = mergeLoc.on(mergeTopic).host(mergeHost).as(mergeContext);
         return mergedSensor;
 
     };
@@ -1391,8 +1372,8 @@
         this._zone = null;
         this._service = null;
         this._routeKey = '';
-        this._demandCluster('*'); // wildcard storage location for all topics
-        this._demandCluster('update'); // default for data storage
+   //     this._demandCluster('*'); // wildcard storage location for all topics
+   //     this._demandCluster('update'); // default for data storage
         this._dropped = false;
 
     };
