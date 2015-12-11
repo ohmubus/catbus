@@ -1,6 +1,6 @@
 {
   "name": "catbus",
-  "version": "2.0.7",
+  "version": "2.0.8",
   "description": "data store (cat?) and message bus (bus!) in Javascript",
   "main": "dist/catbus.js",
   "directories": {
@@ -27,7 +27,7 @@
   "authors": [
     "Scott Southworth (https://twitter.com/DarkMarmot)",
     "Landon Barnickle (https://twitter.com/landonb)"
-    ],
+  ],
   "license": "Apache 2.0",
   "bugs": {
     "url": "https://github.com/DarkMarmot/catbus/issues"
