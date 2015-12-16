@@ -545,7 +545,7 @@ describe('Catbus', function(){
 
             it('change flag suppresses successive duplicates', function () {
 
-                ohmu.change();
+                ohmu.change(function(d){return d;});
                 valley.write('Spores descend');
                 valley.write('Spores descend');
                 valley.write('Spores descend');

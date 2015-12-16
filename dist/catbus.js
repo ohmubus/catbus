@@ -1,5 +1,5 @@
 /**
- * catbus.js (v2.0.11)
+ * catbus.js (v2.1.0)
  *
  * Copyright (c) 2015 Scott Southworth, Landon Barnickle & Contributors
  *
@@ -668,6 +668,7 @@
         this._batchedAsList = [];
         this._keep = null; // last or first or all or null (not batching)
         this._pipe = false;
+        this._change = null;
         this._needs = []; // array of tags needed before firing
         this._retain = false; // will retain prior tag messages
         this._last = null;
@@ -716,7 +717,7 @@
         zone:  {name: 'zone', valid: '_isZone', setter: '_setZone', prop: '_zone'},
         defer: {name: 'defer', type: 'boolean' , prop: '_defer', default_set: true},
         batch: {name: 'batch', type: 'boolean' , prop: '_batch', default_set: true, setter: '_setBatch'},
-        change: {name: 'change', type: 'function' , prop: '_change', default_set: function(last_msg, current_msg){ return last_msg !== current_msg;}},
+        change: {name: 'change', type: 'function', prop: '_change', default_set: function(msg){ return msg;}},
         optional: {name: 'optional', type: 'boolean' , prop: '_optional', default_set: true},
         group: {name: 'group', type: 'function', prop: '_group', functor: true, default_set: function(msg, topic, name){ return name;}},
         pipe: {name: 'pipe', valid: '_isLocation', prop: '_pipe'},
@@ -1194,10 +1195,11 @@
 
         msg = (typeof this._appear === 'function') ? this._appear.call(this._context || this, msg, topic, tag) : msg;
 
-        if(this._change && !this._change.call(null, this._lastAppearingMsg, msg))
-            return this; // return if no change in messages and change function set (returns true on change)
+        var compare_msg = this._change && this._change.call(null, msg, topic, tag);
+        if(this._change && compare_msg === this._lastAppearingMsg)
+            return this;
 
-        this._lastAppearingMsg = msg;
+        this._lastAppearingMsg = compare_msg;
 
         if(!this._callback && !this._pipe)
             return this; // no actions to take
