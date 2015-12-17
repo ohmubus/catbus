@@ -1072,15 +1072,6 @@
     };
 
 
-
-    Sensor.prototype._setGroup = function(group){
-
-        this._group = group;
-        //if(group)
-        //    this.batch(true);
-        return this;
-    };
-
     Sensor.prototype._setBatch = function(batch){
 
         this._batch = batch;
@@ -1458,7 +1449,7 @@
         return this._name || null;
     };
 
-    Location.prototype.adapt = Location.prototype.transform = function(f){
+    Location.prototype.conform = Location.prototype.adapt = Location.prototype.transform = function(f){
         this._appear = createFunctor(f);
         return this;
     };
