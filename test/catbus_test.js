@@ -216,6 +216,7 @@ describe('Catbus', function(){
             assert.equal('meow', tree.read());
         });
 
+
         it('can conform data dynamically with topics', function(){
 
             tree.conform(function(msg, topic, tag){ return msg + ':' + topic + ':' + tag});
@@ -252,6 +253,13 @@ describe('Catbus', function(){
             tree.refresh();
             assert.equal('Catbus', tree.read());
         });
+
+        it('can create synchronous methods to act as an api mediator', function(){
+            tree.method('climb','climb_response', function(msg){ return msg + ' up tree'});
+            var result = tree.invoke('climb','kitten');
+            assert.equal('kitten up tree', result);
+        });
+
 
         it('makes sensors with update topic', function(){
             var fish = boat.createSensor();

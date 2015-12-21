@@ -1,5 +1,5 @@
 /**
- * catbus.js (v2.1.0)
+ * catbus.js (v2.2.0)
  *
  * Copyright (c) 2015 Scott Southworth, Landon Barnickle & Contributors
  *
@@ -1365,6 +1365,7 @@
         this._zone = null;
         this._service = null;
         this._routeKey = '';
+        this._methodMap = {};
         this._demandCluster('*'); // wildcard storage location for all topics
         this._demandCluster('update'); // default for data storage
         this._dropped = false;
@@ -1376,6 +1377,18 @@
         this._isRoute = true;
         this._determineRouteKey();
 
+    };
+
+    Location.prototype.method = function(requestTopic, responseTopic, method){
+        // todo: maintain hash by requestTopic for dropping and redefining methods
+        this._methodMap[requestTopic] = responseTopic;
+        this.on(requestTopic).transform(method).emit(responseTopic).pipe(this);
+    };
+
+    Location.prototype.invoke = function(requestTopic, requestData){
+        this.write(requestData, requestTopic);
+        var responseTopic = this._methodMap[requestTopic];
+        return this.read(responseTopic);
     };
 
     Location.prototype._determineRouteKey = function(){
