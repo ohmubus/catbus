@@ -12,22 +12,22 @@
     "changelogCommand": "git log --pretty=format:'* %s (%h)' [REV_RANGE]",
     "requireCleanWorkingDir": false,
     "src": {
-        "pushRepo": null,
+        "pushRepo": "https://github.com/enlore/catbus.git",
         "beforeStartCommand": false,
         "beforeStageCommand": false,
         "afterReleaseCommand": false
     },
     "dist": {
-        "repo": false,
+        "repo": "https://github.com/ohmubus/catbus.git",
         "stageDir": ".stage",
-        "baseDir": "dist",
+        "baseDir": ".",
         "files": ["**/*"],
         "pkgFiles": null,
         "beforeStageCommand": false,
         "afterReleaseCommand": false
     },
     "npm": {
-        "publish": false,
+        "publish": true,
         "publishPath": ".",
         "tag": "latest",
         "private": false,
