@@ -207,18 +207,19 @@ describe('Catbus', function(){
             assert.equal('Catbus', tree.read());
         });
 
-        it('can adapt data', function(){
+        it('can conform incoming data', function(){
 
-            tree.adapt('meow');
+            tree.conform('meow');
             tree.write('Kittenbus');
             assert.equal('meow', tree.read());
             tree.write('Catbus');
             assert.equal('meow', tree.read());
         });
 
-        it('can adapt data dynamically with topics', function(){
 
-            tree.adapt(function(msg, topic, tag){ return msg + ':' + topic + ':' + tag});
+        it('can conform data dynamically with topics', function(){
+
+            tree.conform(function(msg, topic, tag){ return msg + ':' + topic + ':' + tag});
             tree.write('Kittenbus','look','kitten');
             assert.equal('Kittenbus:look:kitten', tree.read('look'));
             tree.write('Catbus');
@@ -226,9 +227,9 @@ describe('Catbus', function(){
 
         });
 
-        it('can clear adapt', function(){
+        it('can clear conform', function(){
 
-            tree.adapt();
+            tree.conform();
             tree.write('Kittenbus','look','kitten');
             assert.equal('Kittenbus', tree.read('look'));
             tree.write('Catbus');
@@ -252,6 +253,13 @@ describe('Catbus', function(){
             tree.refresh();
             assert.equal('Catbus', tree.read());
         });
+
+        it('can create synchronous methods to act as an api mediator', function(){
+            tree.method('climb','climb_response', function(msg){ return msg + ' up tree'});
+            var result = tree.invoke('climb','kitten');
+            assert.equal('kitten up tree', result);
+        });
+
 
         it('makes sensors with update topic', function(){
             var fish = boat.createSensor();
@@ -384,36 +392,36 @@ describe('Catbus', function(){
                 girl.drop();
             });
 
-            it('can adapt incoming message', function () {
-                girl.adapt('meow');
+            it('can conform incoming message', function () {
+                girl.conform('meow');
                 castle.write('Howl flies'); // topic defaults to update
                 assert.equal(1, _invoked); // invoke callback once more
                 assert.equal('meow', _msg); // invoke callback once more
             });
 
-            it('can clear adapt for incoming message', function () {
-                girl.adapt();
+            it('can clear conform for incoming message', function () {
+                girl.conform();
                 castle.write('iron'); // topic defaults to update
                 assert.equal(1, _invoked); // invoke callback once more
                 assert.equal('iron', _msg); // invoke callback once more
             });
 
-            it('can adapt incoming message dynamically', function () {
-                girl.on('amulet').adapt(function(msg, topic, tag){ return msg + ':' + topic + ':' + tag;});
+            it('can conform incoming message dynamically', function () {
+                girl.on('amulet').conform(function(msg, topic, tag){ return msg + ':' + topic + ':' + tag;});
                 castle.write('sky', 'amulet');
                 assert.equal(1, _invoked); // invoke callback once more
                 assert.equal('sky:amulet:castle', _msg); // receive concatenated msg result
             });
 
 
-            it('can adapt incoming message dynamically then transform output', function () {
-                girl.on('amulet').adapt('blue').change();
+            it('can conform incoming message dynamically then transform output', function () {
+                girl.on('amulet').conform('blue').change();
                 castle.write('sky', 'amulet');
                 assert.equal(1, _invoked); // invoke callback once more
-                assert.equal('blue', _msg); // receive adapted msg result
+                assert.equal('blue', _msg); // receive conformed msg result
                 girl.transform('green');
                 castle.write('stone', 'amulet');
-                assert.equal(1, _invoked); // callback blocked by change and adapt combo
+                assert.equal(1, _invoked); // callback blocked by change and conformed combo
                 girl.change(false);
                 castle.write('stone', 'amulet');
                 assert.equal(2, _invoked); // invoke callback once more with change off
@@ -545,7 +553,7 @@ describe('Catbus', function(){
 
             it('change flag suppresses successive duplicates', function () {
 
-                ohmu.change();
+                ohmu.change(function(d){return d;});
                 valley.write('Spores descend');
                 valley.write('Spores descend');
                 valley.write('Spores descend');
