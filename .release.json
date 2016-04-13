@@ -1,0 +1,41 @@
+{
+    "non-interactive": true,
+    "dry-run": false,
+    "verbose": false,
+    "force": false,
+    "pkgFiles": ["package.json"],
+    "prereleaseId": null,
+    "commitMessage": "Release %s",
+    "tagName": "%s",
+    "tagAnnotation": "Release %s",
+    "buildCommand": false,
+    "changelogCommand": "git log --pretty=format:'* %s (%h)' [REV_RANGE]",
+    "requireCleanWorkingDir": false,
+    "src": {
+        "pushRepo": null,
+        "beforeStartCommand": false,
+        "beforeStageCommand": false,
+        "afterReleaseCommand": false
+    },
+    "dist": {
+        "repo": false,
+        "stageDir": ".stage",
+        "baseDir": "dist",
+        "files": ["**/*"],
+        "pkgFiles": null,
+        "beforeStageCommand": false,
+        "afterReleaseCommand": false
+    },
+    "npm": {
+        "publish": false,
+        "publishPath": ".",
+        "tag": "latest",
+        "private": false,
+        "forcePublishSourceRepo": false
+    },
+    "github": {
+        "release": false,
+        "releaseNa": "Release %s",
+        "tokenRef": "GITHUB_TOKEN"
+    }
+}
