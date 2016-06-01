@@ -1,6 +1,6 @@
 {
   "name": "catbus",
-  "version": "2.3.4",
+  "version": "2.4.0",
   "description": "data store (cat?) and message bus (bus!) in Javascript",
   "main": "catbus.js",
   "directories": {
